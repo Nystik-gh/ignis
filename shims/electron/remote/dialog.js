@@ -19,10 +19,12 @@ export const dialogShim = {
     return { canceled: false, filePath: "/downloads/" + name };
   },
 
+  // TODO: replace alert() with a styled modal (matching vault manager style)
   async showMessageBox(browserWindow, options) {
     if (typeof browserWindow === "object" && !options) {
       options = browserWindow;
     }
+
     console.log("[shim:dialog] showMessageBox:", options);
 
     const message = options.message || "";

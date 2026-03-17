@@ -12,6 +12,7 @@ export const pathShim = {
     if (p === "/" && window.__currentVaultId) {
       return window.__currentVaultId;
     }
+
     return _origBasename(p, ext);
   },
 };

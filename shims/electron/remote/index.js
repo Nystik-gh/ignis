@@ -25,6 +25,7 @@ export const remoteShim = {
   screen: screenShim,
   nativeImage: nativeImageShim,
   Notification: notificationShim,
+
   safeStorage: {
     isEncryptionAvailable() {
       return false;

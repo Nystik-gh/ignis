@@ -4,8 +4,12 @@ export class EventEmitter {
   }
 
   on(event, listener) {
-    if (!this._events[event]) this._events[event] = [];
+    if (!this._events[event]) {
+      this._events[event] = [];
+    }
+
     this._events[event].push(listener);
+
     return this;
   }
 
@@ -14,24 +18,39 @@ export class EventEmitter {
       this.removeListener(event, wrapped);
       listener.apply(this, args);
     };
+
     wrapped._original = listener;
     return this.on(event, wrapped);
   }
 
   emit(event, ...args) {
     const listeners = this._events[event];
-    if (!listeners || listeners.length === 0) return false;
+
+    if (!listeners || listeners.length === 0) {
+      return false;
+    }
+
     for (const fn of [...listeners]) {
       fn.apply(this, args);
     }
+
     return true;
   }
 
   removeListener(event, listener) {
     const arr = this._events[event];
-    if (!arr) return this;
-    const idx = arr.findIndex((fn) => fn === listener || fn._original === listener);
-    if (idx >= 0) arr.splice(idx, 1);
+    if (!arr) {
+      return this;
+    }
+
+    const idx = arr.findIndex(
+      (fn) => fn === listener || fn._original === listener,
+    );
+
+    if (idx >= 0) {
+      arr.splice(idx, 1);
+    }
+
     return this;
   }
 
@@ -45,6 +64,7 @@ export class EventEmitter {
     } else {
       this._events = {};
     }
+
     return this;
   }
 
@@ -61,8 +81,12 @@ export class EventEmitter {
   }
 
   prependListener(event, listener) {
-    if (!this._events[event]) this._events[event] = [];
+    if (!this._events[event]) {
+      this._events[event] = [];
+    }
+
     this._events[event].unshift(listener);
+
     return this;
   }
 

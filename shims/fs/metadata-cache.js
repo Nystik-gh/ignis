@@ -1,6 +1,6 @@
 // In-memory metadata cache
 // Populated from /api/fs/tree on startup, kept in sync via transport events.
-// All stat/exists/readdir calls are served from this cache (zero latency).
+// All stat/exists/readdir calls are served from this cache.
 
 export class MetadataCache {
   constructor() {
@@ -38,10 +38,12 @@ export class MetadataCache {
     const oldNorm = this._normalize(oldPath);
     const newNorm = this._normalize(newPath);
     const meta = this._entries.get(oldNorm);
+
     if (meta) {
       this._entries.delete(oldNorm);
       this._entries.set(newNorm, meta);
     }
+
     // Move children
     const prefix = oldNorm + "/";
     for (const [key, val] of this._entries) {
@@ -65,9 +67,11 @@ export class MetadataCache {
         const rest = key.slice(prefix.length);
         const slashIdx = rest.indexOf("/");
         const childName = slashIdx >= 0 ? rest.slice(0, slashIdx) : rest;
+
         if (childName && !seen.has(childName)) {
           seen.add(childName);
           const childMeta = this._entries.get(prefix + childName);
+
           results.push({
             name: childName,
             type: childMeta?.type || (slashIdx >= 0 ? "directory" : "file"),
@@ -82,10 +86,13 @@ export class MetadataCache {
     return this._entries.size;
   }
 
-  // Build a stat-like object from metadata
   toStat(path) {
     const meta = this.get(path);
-    if (!meta) return null;
+
+    if (!meta) {
+      return null;
+    }
+
     return {
       size: meta.size || 0,
       mtimeMs: meta.mtime || 0,

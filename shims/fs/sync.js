@@ -6,6 +6,7 @@ export function createFsSync(metadataCache, contentCache, transport) {
 
     statSync(path) {
       const stat = metadataCache.toStat(path);
+
       if (!stat) {
         const err = new Error(
           `ENOENT: no such file or directory, stat '${path}'`,
@@ -13,6 +14,7 @@ export function createFsSync(metadataCache, contentCache, transport) {
         err.code = "ENOENT";
         throw err;
       }
+
       return stat;
     },
 
@@ -27,7 +29,9 @@ export function createFsSync(metadataCache, contentCache, transport) {
     },
 
     readFileSync(path, encoding) {
-      if (typeof encoding === "object") encoding = encoding?.encoding;
+      if (typeof encoding === "object") {
+        encoding = encoding?.encoding;
+      }
 
       const meta = metadataCache.get(path);
       if (meta && meta.type === "directory") {
@@ -43,21 +47,28 @@ export function createFsSync(metadataCache, contentCache, transport) {
             ? cached
             : new TextDecoder().decode(cached);
         }
+
         return cached;
       }
 
       console.warn("[shim:fs] readFileSync cache miss, using sync XHR:", path);
+
       const data = transport.readFileSync(path, encoding);
       contentCache.set(path, data);
+
       return data;
     },
 
     writeFileSync(path, data, encoding) {
-      if (typeof encoding === "object") encoding = encoding?.encoding;
+      if (typeof encoding === "object") {
+        encoding = encoding?.encoding;
+      }
 
       contentCache.set(path, data);
+
       const size =
         typeof data === "string" ? data.length : data.byteLength || 0;
+
       metadataCache.set(path, {
         type: "file",
         size,

@@ -20,6 +20,7 @@ export class ContentCache {
       entry.accessedAt = Date.now();
       return entry.data;
     }
+
     return null;
   }
 
@@ -44,6 +45,7 @@ export class ContentCache {
   delete(path) {
     const norm = this._normalize(path);
     const entry = this._cache.get(norm);
+
     if (entry) {
       this._currentSize -= entry.size;
       this._cache.delete(norm);
@@ -71,12 +73,14 @@ export class ContentCache {
   _evictOne() {
     let oldest = null;
     let oldestTime = Infinity;
+
     for (const [key, entry] of this._cache) {
       if (entry.accessedAt < oldestTime) {
         oldest = key;
         oldestTime = entry.accessedAt;
       }
     }
+
     if (oldest) {
       this.delete(oldest);
     }

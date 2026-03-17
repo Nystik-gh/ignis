@@ -1,13 +1,14 @@
-// Override window.requestUrl to proxy external requests through our server,
-// bypassing browser CORS restrictions. Obsidian sets window.requestUrl = UA
-// in app.js, so we override it after app.js loads.
+// Override window.requestUrl to proxy external requests through our server, bypassing CORS.
+// Obsidian sets window.requestUrl in app.js, so we override it after app.js loads.
 
 function base64ToArrayBuffer(base64) {
   const binary = atob(base64);
   const bytes = new Uint8Array(binary.length);
+
   for (let i = 0; i < binary.length; i++) {
     bytes[i] = binary.charCodeAt(i);
   }
+
   return bytes.buffer;
 }
 
@@ -15,9 +16,11 @@ function arrayBufferToBase64(buf) {
   const bytes = new Uint8Array(buf);
   let binary = "";
   const chunk = 8192;
+
   for (let i = 0; i < bytes.length; i += chunk) {
     binary += String.fromCharCode.apply(null, bytes.subarray(i, i + chunk));
   }
+
   return btoa(binary);
 }
 
@@ -37,7 +40,9 @@ async function proxyRequestUrl(request) {
       headers: request.headers || {},
       body: request.body,
     });
+
     const arrayBuf = await res.arrayBuffer();
+
     return makeResponse(
       request,
       res.status,
@@ -49,6 +54,7 @@ async function proxyRequestUrl(request) {
   // Cross-origin: route through server proxy
   let body = request.body;
   let binary = false;
+
   if (body instanceof ArrayBuffer) {
     body = arrayBufferToBase64(body);
     binary = true;
@@ -75,6 +81,7 @@ async function proxyRequestUrl(request) {
 
   const proxyResult = await res.json();
   const arrayBuf = base64ToArrayBuffer(proxyResult.body);
+
   return makeResponse(
     request,
     proxyResult.status,
@@ -86,11 +93,13 @@ async function proxyRequestUrl(request) {
 function makeResponse(request, status, headers, arrayBuf) {
   const text = new TextDecoder().decode(arrayBuf);
   let json;
+
   try {
     json = JSON.parse(text);
   } catch {
     json = null;
   }
+
   return { status, headers, arrayBuffer: arrayBuf, text, json };
 }
 

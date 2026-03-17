@@ -15,6 +15,7 @@ export class ClientRequest extends EventEmitter {
   constructor() {
     super();
   }
+
   end() {}
   write() {}
   abort() {}
@@ -26,6 +27,7 @@ export function request(options, callback) {
   if (callback) {
     req.once("response", callback);
   }
+
   // Immediately error. real HTTP requests need fetch or the proxy
   setTimeout(() => {
     req.emit(

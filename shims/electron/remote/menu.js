@@ -6,6 +6,7 @@ export class menuShim {
   static buildFromTemplate(template) {
     const menu = new menuShim();
     menu.items = (template || []).map((item) => new menuItemShim(item));
+
     return menu;
   }
 
@@ -18,7 +19,6 @@ export class menuShim {
   }
 
   popup(options) {
-    // TODO: render custom HTML context menu at mouse position
     console.log("[shim:Menu] popup (stub)", options);
   }
 
@@ -30,9 +30,7 @@ export class menuShim {
     this.items.splice(pos, 0, menuItem);
   }
 
-  closePopup() {
-    // TODO: hide custom context menu
-  }
+  closePopup() {}
 }
 
 export class menuItemShim {

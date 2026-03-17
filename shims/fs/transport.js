@@ -7,9 +7,11 @@ function normPath(p) {
 function uint8ToBase64(bytes) {
   let binary = "";
   const chunk = 8192;
+
   for (let i = 0; i < bytes.length; i += chunk) {
     binary += String.fromCharCode.apply(null, bytes.subarray(i, i + chunk));
   }
+
   return btoa(binary);
 }
 
@@ -23,7 +25,10 @@ async function request(method, endpoint, params = {}) {
   const options = { method };
 
   if (method === "GET" || method === "DELETE") {
-    if (vaultId()) url.searchParams.set("vault", vaultId());
+    if (vaultId()) {
+      url.searchParams.set("vault", vaultId());
+    }
+
     for (const [key, val] of Object.entries(params)) {
       url.searchParams.set(key, val);
     }
@@ -41,6 +46,7 @@ async function request(method, endpoint, params = {}) {
     e.code = err.code || "UNKNOWN";
     throw e;
   }
+
   return res;
 }
 
@@ -53,7 +59,10 @@ function requestSync(method, endpoint, params = {}) {
   const url = new URL(API_BASE + endpoint, window.location.origin);
 
   if (method === "GET" || method === "DELETE") {
-    if (vaultId()) url.searchParams.set("vault", vaultId());
+    if (vaultId()) {
+      url.searchParams.set("vault", vaultId());
+    }
+
     for (const [key, val] of Object.entries(params)) {
       url.searchParams.set(key, val);
     }
@@ -71,6 +80,7 @@ function requestSync(method, endpoint, params = {}) {
 
   if (xhr.status >= 400) {
     let err;
+
     try {
       const body = JSON.parse(xhr.responseText);
       err = new Error(body.error || "Request failed");
@@ -79,6 +89,7 @@ function requestSync(method, endpoint, params = {}) {
       err = new Error("Request failed: " + xhr.status);
       err.code = "UNKNOWN";
     }
+
     throw err;
   }
 
@@ -103,9 +114,11 @@ export const transport = {
       path: normPath(path),
       encoding: encoding || "",
     });
+
     if (encoding === "utf8" || encoding === "utf-8") {
       return res.text();
     }
+
     const buf = await res.arrayBuffer();
     return new Uint8Array(buf);
   },
@@ -184,14 +197,18 @@ export const transport = {
       path: normPath(path),
       encoding: encoding || "",
     });
+
     if (encoding === "utf8" || encoding === "utf-8") {
       return xhr.responseText;
     }
+
     const binary = xhr.responseText;
     const bytes = new Uint8Array(binary.length);
+
     for (let i = 0; i < binary.length; i++) {
       bytes[i] = binary.charCodeAt(i);
     }
+
     return bytes;
   },
 

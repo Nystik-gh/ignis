@@ -6,31 +6,40 @@ const syncHandlers = {
   vault: () => window.__vaultConfig || { id: "default-vault", path: "/" },
   version: () => window.__obsidianVersion || "0.0.0",
   "is-dev": () => false,
+
   "file-url": () =>
     "/vault-files/" + encodeURIComponent(window.__currentVaultId || "") + "/",
+
   "disable-update": () => true,
   update: () => "",
   "disable-gpu": () => false,
   frame: () => null,
   "set-icon": () => null,
   "get-icon": () => null,
+
   relaunch: () => {
     window.location.reload();
     return null;
   },
+
   starter: () => {
     showVaultManager();
     return null;
   },
+
   help: () => {
     window.open("https://help.obsidian.md/", "_blank");
     return null;
   },
+
   sandbox: () => null,
+
   "copy-asar": () => false,
   "check-update": () => null,
+
   "vault-list": () => {
     const result = {};
+
     for (const v of window.__vaultList || []) {
       result[v.id] = {
         path: "/" + v.id,
@@ -38,36 +47,51 @@ const syncHandlers = {
         open: v.id === (window.__currentVaultId || ""),
       };
     }
+
     return result;
   },
+
   "vault-open": (vaultPath, newWindow) => {
     const id = (vaultPath || "").replace(/^\/+/, "");
     const vault = (window.__vaultList || []).find((v) => v.id === id);
+
     if (!vault && id) {
       const xhr = new XMLHttpRequest();
+
       xhr.open("POST", "/api/vault/create", false);
       xhr.setRequestHeader("Content-Type", "application/json");
       xhr.send(JSON.stringify({ name: id }));
-      if (xhr.status >= 400) return "Failed to create vault";
+
+      if (xhr.status >= 400) {
+        return "Failed to create vault";
+      }
     }
+
     const target = window.parent !== window ? window.parent : window;
     target.location.href = "/?vault=" + encodeURIComponent(id);
+
     return true;
   },
+
   "vault-remove": (vaultPath) => {
     const id = (vaultPath || "").replace(/^\/+/, "");
     const xhr = new XMLHttpRequest();
+
     xhr.open(
       "DELETE",
       "/api/vault/remove?vault=" + encodeURIComponent(id),
       false,
     );
+
     xhr.send();
+
     return xhr.status < 400;
   },
+
   "vault-move": (oldPath, newPath) => {
     return "Moving vaults is not supported in the web version";
   },
+
   "vault-message": () => null,
   "get-default-vault-path": () => "/My Vault",
   "get-documents-path": () => "/",
@@ -80,18 +104,22 @@ function arrayBufferToBase64(buf) {
   const bytes = new Uint8Array(buf);
   let binary = "";
   const chunk = 8192;
+
   for (let i = 0; i < bytes.length; i += chunk) {
     binary += String.fromCharCode.apply(null, bytes.subarray(i, i + chunk));
   }
+
   return btoa(binary);
 }
 
 function base64ToArrayBuffer(base64) {
   const binary = atob(base64);
   const bytes = new Uint8Array(binary.length);
+
   for (let i = 0; i < binary.length; i++) {
     bytes[i] = binary.charCodeAt(i);
   }
+
   return bytes.buffer;
 }
 
@@ -99,6 +127,7 @@ async function handleRequestUrl(requestId, request) {
   try {
     let body = request.body;
     let binary = false;
+
     if (body instanceof ArrayBuffer) {
       body = arrayBufferToBase64(body);
       binary = true;
@@ -118,6 +147,7 @@ async function handleRequestUrl(requestId, request) {
     });
 
     const proxyResult = await res.json();
+
     if (!res.ok) {
       ipcRenderer._emit(requestId, {
         error: proxyResult.error || "Proxy request failed",
@@ -160,6 +190,7 @@ export const ipcRenderer = {
 
     if (channel === "print-to-pdf") {
       const iframe = window.__popupIframe;
+
       if (iframe) {
         setTimeout(() => {
           iframe.contentWindow.print();
@@ -170,6 +201,7 @@ export const ipcRenderer = {
         }, 200);
       } else {
         window.print();
+
         queueMicrotask(() => {
           ipcRenderer._emit("print-to-pdf", { success: true });
         });
@@ -180,9 +212,11 @@ export const ipcRenderer = {
 
   sendSync(channel, ...args) {
     console.log("[shim:ipcRenderer] sendSync:", channel, args);
+
     if (syncHandlers[channel]) {
       return syncHandlers[channel](...args);
     }
+
     console.warn("[shim:ipcRenderer] Unhandled sendSync channel:", channel);
     return null;
   },
@@ -191,7 +225,9 @@ export const ipcRenderer = {
     if (!listeners.has(channel)) {
       listeners.set(channel, []);
     }
+
     listeners.get(channel).push(listener);
+
     return ipcRenderer;
   },
 
@@ -200,6 +236,7 @@ export const ipcRenderer = {
       ipcRenderer.removeListener(channel, wrapped);
       listener(...args);
     };
+
     return ipcRenderer.on(channel, wrapped);
   },
 
@@ -207,8 +244,12 @@ export const ipcRenderer = {
     const arr = listeners.get(channel);
     if (arr) {
       const idx = arr.indexOf(listener);
-      if (idx >= 0) arr.splice(idx, 1);
+
+      if (idx >= 0) {
+        arr.splice(idx, 1);
+      }
     }
+
     return ipcRenderer;
   },
 
@@ -218,11 +259,13 @@ export const ipcRenderer = {
     } else {
       listeners.clear();
     }
+
     return ipcRenderer;
   },
 
   _emit(channel, ...args) {
     const arr = listeners.get(channel);
+
     if (arr) {
       for (const fn of arr) {
         fn({}, ...args);

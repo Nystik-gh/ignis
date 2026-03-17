@@ -2,10 +2,11 @@ const express = require("express");
 
 const router = express.Router();
 
-// POST /api/proxy - forward a request to an external URL (bypasses browser CORS)
-// Used by the requestUrl shim for plugin installation, update checks, etc.
+// POST /api/proxy - forward a request to an external URL to bypass CORS
+// Used by the requestUrl shim for plugin installation, etc.
 router.post("/", async (req, res) => {
   const { url, method, headers, body, binary } = req.body;
+
   if (!url) {
     return res.status(400).json({ error: "Missing url" });
   }
@@ -15,6 +16,7 @@ router.post("/", async (req, res) => {
       method: method || "GET",
       headers: headers || {},
     };
+
     if (body && method !== "GET" && method !== "HEAD") {
       if (binary && typeof body === "string") {
         fetchOpts.body = Buffer.from(body, "base64");

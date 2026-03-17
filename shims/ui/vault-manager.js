@@ -1,5 +1,4 @@
 // Custom vault manager modal. will migrate to Svelte later
-// Shows list of vaults, create new, delete, switch.
 
 export function showVaultManager() {
   if (!document.querySelector(".workspace")) return;

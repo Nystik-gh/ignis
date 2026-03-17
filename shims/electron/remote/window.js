@@ -107,15 +107,21 @@ const currentWindow = {
   },
 
   on(event, handler) {
-    if (event === "focus") window.addEventListener("focus", handler);
-    else if (event === "blur") window.addEventListener("blur", handler);
-    else if (event === "resize") window.addEventListener("resize", handler);
+    if (event === "focus") {
+      window.addEventListener("focus", handler);
+    } else if (event === "blur") {
+      window.addEventListener("blur", handler);
+    } else if (event === "resize") {
+      window.addEventListener("resize", handler);
+    }
+
     return currentWindow;
   },
 
   once(event, handler) {
-    if (event === "focus")
+    if (event === "focus") {
       window.addEventListener("focus", handler, { once: true });
+    }
     return currentWindow;
   },
 
@@ -309,19 +315,34 @@ export const windowShim = {
 
   getAllWindows() {
     const wins = [currentWindow];
-    if (_popupWindow) wins.push(_popupWindow);
+    if (_popupWindow) {
+      wins.push(_popupWindow);
+    }
+
     return wins;
   },
 
   fromId(id) {
-    if (id === currentWindow.id) return currentWindow;
-    if (_popupWindow && id === _popupWindow.id) return _popupWindow;
+    if (id === currentWindow.id) {
+      return currentWindow;
+    }
+
+    if (_popupWindow && id === _popupWindow.id) {
+      return _popupWindow;
+    }
+
     return null;
   },
 
   fromWebContents(wc) {
-    if (wc === currentWebContents) return currentWindow;
-    if (_popupWebContents && wc === _popupWebContents) return _popupWindow;
+    if (wc === currentWebContents) {
+      return currentWindow;
+    }
+
+    if (_popupWebContents && wc === _popupWebContents) {
+      return _popupWindow;
+    }
+
     return null;
   },
 };
@@ -329,14 +350,22 @@ export const windowShim = {
 export const webContentsShim = {
   _current: () => currentWebContents,
   fromId(id) {
-    if (id === currentWebContents.id) return currentWebContents;
-    if (_popupWebContents && id === _popupWebContents.id)
+    if (id === currentWebContents.id) {
+      return currentWebContents;
+    }
+
+    if (_popupWebContents && id === _popupWebContents.id) {
       return _popupWebContents;
+    }
+
     return null;
   },
   getAllWebContents() {
     const wcs = [currentWebContents];
-    if (_popupWebContents) wcs.push(_popupWebContents);
+    if (_popupWebContents) {
+      wcs.push(_popupWebContents);
+    }
+
     return wcs;
   },
 };

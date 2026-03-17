@@ -8,9 +8,11 @@ export function randomBytes(size) {
         .map((b) => b.toString(16).padStart(2, "0"))
         .join("");
     }
+
     if (encoding === "base64") {
       return btoa(String.fromCharCode(...this));
     }
+
     return new TextDecoder().decode(this);
   };
 

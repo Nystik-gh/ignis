@@ -3,7 +3,7 @@ const fs = require("fs");
 
 // VAULT_ROOT: a directory that contains vault folders.
 // Each subdirectory is a vault. New vaults are created as new subdirs.
-// Falls back to parent of VAULT_PATH (single-vault compat) or ./vaults.
+// Falls back to parent of VAULT_PATH (single-vault compatibility) or ./vaults.
 const vaultRoot =
   process.env.VAULT_ROOT ||
   (process.env.VAULT_PATH
@@ -19,8 +19,10 @@ try {
 
 function discoverVaults() {
   const vaults = {};
+
   try {
     const entries = fs.readdirSync(vaultRoot, { withFileTypes: true });
+
     for (const entry of entries) {
       if (entry.isDirectory() && !entry.name.startsWith(".")) {
         vaults[entry.name] = path.join(vaultRoot, entry.name);
@@ -29,12 +31,15 @@ function discoverVaults() {
   } catch (e) {
     console.error("[config] Failed to read VAULT_ROOT:", vaultRoot, e.message);
   }
+
   // Create a default vault if none exist
   if (Object.keys(vaults).length === 0) {
     const defaultPath = path.join(vaultRoot, "My Vault");
+
     try {
       fs.mkdirSync(path.join(defaultPath, ".obsidian"), { recursive: true });
       vaults["My Vault"] = defaultPath;
+
       console.log("[config] Created default vault: My Vault");
     } catch (e) {
       console.error("[config] Failed to create default vault:", e.message);

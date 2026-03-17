@@ -37,7 +37,10 @@ export const themeShim = {
     if (event === "updated") {
       const wrapped = () => {
         const idx = listeners.indexOf(wrapped);
-        if (idx >= 0) listeners.splice(idx, 1);
+        if (idx >= 0) {
+          listeners.splice(idx, 1);
+        }
+
         callback();
       };
       listeners.push(wrapped);
@@ -47,7 +50,10 @@ export const themeShim = {
 
   removeListener(event, callback) {
     const idx = listeners.indexOf(callback);
-    if (idx >= 0) listeners.splice(idx, 1);
+    if (idx >= 0) {
+      listeners.splice(idx, 1);
+    }
+
     return themeShim;
   },
 

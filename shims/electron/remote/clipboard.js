@@ -1,6 +1,6 @@
+// stub
 export const clipboardShim = {
   readText() {
-    // TODO: maintain a local mirror updated via async reads
     return "";
   },
 

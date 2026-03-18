@@ -15,6 +15,7 @@ import * as eventsShim from "./node/events.js";
 import * as osShim from "./node/os.js";
 import * as netShim from "./node/net.js";
 import * as httpShim from "./node/http.js";
+import { vaultService } from "../services/vault-service.js";
 
 const DEBUG = true;
 const _accessLog = new Map(); // "module.property" -> count
@@ -217,14 +218,7 @@ window.__currentVaultId = _urlParams.get("vault") || "";
 
 (function initVaultList() {
   try {
-    const xhr = new XMLHttpRequest();
-
-    xhr.open("GET", "/api/vault/list", false);
-    xhr.send();
-
-    if (xhr.status === 200) {
-      window.__vaultList = JSON.parse(xhr.responseText);
-    }
+    vaultService.listVaultsSync();
   } catch (e) {
     window.__vaultList = [];
   }

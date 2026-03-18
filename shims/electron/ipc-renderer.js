@@ -1,4 +1,5 @@
-import { showVaultManager } from "../ui/vault-manager.js";
+import { showVaultManager } from "../../ui/bootstrap.js";
+import { vaultService } from "../../services/vault-service.js";
 
 const listeners = new Map();
 
@@ -44,7 +45,7 @@ const syncHandlers = {
       result[v.id] = {
         path: "/" + v.id,
         ts: Date.now(),
-        open: v.id === (window.__currentVaultId || ""),
+        open: v.id === vaultService.getCurrentVaultId(),
       };
     }
 
@@ -56,36 +57,20 @@ const syncHandlers = {
     const vault = (window.__vaultList || []).find((v) => v.id === id);
 
     if (!vault && id) {
-      const xhr = new XMLHttpRequest();
-
-      xhr.open("POST", "/api/vault/create", false);
-      xhr.setRequestHeader("Content-Type", "application/json");
-      xhr.send(JSON.stringify({ name: id }));
-
-      if (xhr.status >= 400) {
+      if (!vaultService.createVaultSync(id)) {
         return "Failed to create vault";
       }
     }
 
-    const target = window.parent !== window ? window.parent : window;
-    target.location.href = "/?vault=" + encodeURIComponent(id);
+    vaultService.openVault(id);
 
     return true;
   },
 
   "vault-remove": (vaultPath) => {
     const id = (vaultPath || "").replace(/^\/+/, "");
-    const xhr = new XMLHttpRequest();
 
-    xhr.open(
-      "DELETE",
-      "/api/vault/remove?vault=" + encodeURIComponent(id),
-      false,
-    );
-
-    xhr.send();
-
-    return xhr.status < 400;
+    return vaultService.deleteVaultSync(id);
   },
 
   "vault-move": (oldPath, newPath) => {

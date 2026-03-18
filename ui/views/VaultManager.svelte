@@ -17,6 +17,8 @@
   import ListItem from "../components/display/ListItem.svelte";
   import PopoverMenu from "../components/menu/PopoverMenu.svelte";
 
+  export let vaultService;
+
   let vaults = [];
   let searchQuery = "";
   let openMenuId = null;
@@ -31,7 +33,8 @@
     { id: "delete", label: "Delete", danger: true },
   ];
 
-  $: currentVaultId = window.__currentVaultId || "";
+  let currentVaultId = vaultService.getCurrentVaultId();
+
   $: deleteMessage = targetVault
     ? 'Are you sure you want to delete "' + targetVault.name + '"?'
     : "";
@@ -41,10 +44,9 @@
       )
     : vaults;
 
-  async function fetchVaults() {
+  async function refreshVaults() {
     try {
-      const res = await fetch("/api/vault/list");
-      vaults = res.ok ? await res.json() : [];
+      vaults = await vaultService.listVaults();
     } catch {
       vaults = [];
     }
@@ -55,7 +57,7 @@
       modalRef.dismiss();
       return;
     }
-    window.location.href = "/?vault=" + encodeURIComponent(vault.id);
+    vaultService.openVault(vault.id);
   }
 
   function toggleMenu(vaultId) {
@@ -104,21 +106,14 @@
       return;
     }
 
-    const res = await fetch("/api/vault/create", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name }),
-    });
-
-    if (!res.ok) {
-      const data = await res.json();
-      alert("Failed to create vault: " + (data.error || "Unknown error"));
+    try {
+      vaults = await vaultService.createVault(name);
+    } catch (err) {
+      alert("Failed to create vault: " + err.message);
       return;
     }
 
     closeDialog();
-
-    window.location.href = "/?vault=" + encodeURIComponent(name);
   }
 
   async function onRenameConfirm(e) {
@@ -129,41 +124,37 @@
       return;
     }
 
-    const res = await fetch("/api/vault/rename", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ vault: targetVault.id, name: trimmed }),
-    });
+    const wasCurrentVault = targetVault.id === currentVaultId;
 
-    if (!res.ok) {
-      const data = await res.json();
-      alert("Failed to rename vault: " + (data.error || "Unknown error"));
+    try {
+      vaults = await vaultService.renameVault(targetVault.id, trimmed);
+    } catch (err) {
+      alert("Failed to rename vault: " + err.message);
       return;
     }
 
     closeDialog();
 
-    if (targetVault.id === currentVaultId) {
-      window.location.href = "/?vault=" + encodeURIComponent(trimmed);
-    } else {
-      await fetchVaults();
+    if (wasCurrentVault) {
+      currentVaultId = vaultService.getCurrentVaultId();
     }
   }
 
   async function onDeleteConfirm() {
-    const wasCurrentVault = targetVault.id === currentVaultId;
+    try {
+      const { wasCurrentVault } = await vaultService.deleteVault(
+        targetVault.id,
+      );
 
-    await fetch(
-      "/api/vault/remove?vault=" + encodeURIComponent(targetVault.id),
-      { method: "DELETE" },
-    );
+      closeDialog();
 
-    closeDialog();
+      vaults = await vaultService.listVaults();
 
-    await fetchVaults();
-
-    if (wasCurrentVault) {
-      window.location.href = "/";
+      if (wasCurrentVault) {
+        vaultService.openVault("");
+      }
+    } catch (err) {
+      alert("Failed to delete vault: " + err.message);
     }
   }
 
@@ -176,7 +167,7 @@
   }
 
   onMount(() => {
-    fetchVaults();
+    refreshVaults();
   });
 </script>
 

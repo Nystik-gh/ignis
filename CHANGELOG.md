@@ -2,6 +2,19 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.6.1] - Slifer (2026-03-24)
+
+### Added
+
+- `fetch()` shim that proxies cross-origin requests through `/api/proxy` to bypass CORS restrictions
+- Automatic `Origin: app://obsidian.md` header injection for cross-origin requests to match Obsidian desktop app
+- User-Agent forwarding from browser to proxy for cross-origin requests
+
+### Fixed
+
+- Obsidian Sync API authentication now works in browser (was blocked by CORS)
+- Proxy response headers cleaned to exclude hop-by-hop headers (`content-encoding`, `transfer-encoding`, `content-length`, `connection`)
+
 ## [0.6.0] - Slifer (2026-03-23)
 
 ### Added

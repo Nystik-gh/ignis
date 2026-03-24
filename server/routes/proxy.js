@@ -28,10 +28,19 @@ router.post("/", async (req, res) => {
     const upstream = await fetch(url, fetchOpts);
     const respBody = Buffer.from(await upstream.arrayBuffer());
 
-    // Forward response headers
+    // Forward response headers, stripping hop-by-hop / encoding headers
+    // since the body is already decompressed by Node's fetch
+    const skipHeaders = new Set([
+      "content-encoding",
+      "transfer-encoding",
+      "content-length",
+      "connection",
+    ]);
     const respHeaders = {};
     upstream.headers.forEach((val, key) => {
-      respHeaders[key] = val;
+      if (!skipHeaders.has(key)) {
+        respHeaders[key] = val;
+      }
     });
 
     res.json({

@@ -1,6 +1,6 @@
 {
   "name": "ignis",
-  "version": "0.6.0",
+  "version": "0.6.1",
   "private": true,
   "description": "An Electron shim and server bridge for running Obsidian in a browser.",
   "scripts": {

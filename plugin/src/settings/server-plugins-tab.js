@@ -107,6 +107,14 @@ function display(containerEl, app) {
                 new Notice(
                   `${plugin.name} ${value ? "enabled" : "disabled"} for this vault.`,
                 );
+
+                // Give Obsidian a moment to update its plugin tabs,
+                // then reconcile our sidebar groups.
+                setTimeout(() => {
+                  if (typeof window.__ignisReconcilePluginTabs === "function") {
+                    window.__ignisReconcilePluginTabs(app.setting);
+                  }
+                }, 100);
               } catch (e) {
                 new Notice(`Failed: ${e.message}`);
                 toggle.setValue(!value);

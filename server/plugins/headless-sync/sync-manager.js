@@ -124,12 +124,6 @@ class SyncManager {
       throw new Error(`No sync configuration for vault: ${vaultId}`);
     }
 
-    if (this.isCoreSyncEnabled(state.vaultPath)) {
-      const msg = `Cannot start sync for ${vaultId}: Obsidian Sync core plugin is enabled`;
-      this.ctx.log(msg);
-      throw new Error(msg);
-    }
-
     if (state.status === "running") {
       this.ctx.log(`Sync already running for ${vaultId}`);
       return this.getState(vaultId);
@@ -316,31 +310,11 @@ class SyncManager {
     }
   }
 
-  isCoreSyncEnabled(vaultPath) {
-    try {
-      const configPath = path.join(vaultPath, ".obsidian", "core-plugins.json");
-      const data = fs.readFileSync(configPath, "utf-8");
-      const config = JSON.parse(data);
-      return config.sync === true;
-    } catch {
-      return false;
-    }
-  }
-
   autoStartAll() {
     let started = 0;
-    let skipped = 0;
 
     for (const [vaultId, state] of this.states) {
       if (state.autoStart && state.status === "stopped") {
-        if (this.isCoreSyncEnabled(state.vaultPath)) {
-          this.ctx.log(
-            `Skipping auto-start for ${vaultId}: Obsidian Sync core plugin is enabled`,
-          );
-          skipped++;
-          continue;
-        }
-
         try {
           this.startSync(vaultId);
           started++;
@@ -352,12 +326,6 @@ class SyncManager {
 
     if (started > 0) {
       this.ctx.log(`Auto-started sync for ${started} vault(s)`);
-    }
-
-    if (skipped > 0) {
-      this.ctx.log(
-        `Skipped ${skipped} vault(s) due to Obsidian Sync being enabled`,
-      );
     }
   }
 

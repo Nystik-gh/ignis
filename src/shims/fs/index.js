@@ -7,6 +7,7 @@ import { createFsWatch } from "./watch.js";
 import { createWatcherClient } from "./watcher-client.js";
 import { createFdOps } from "./fd.js";
 import { constants } from "./constants.js";
+import { registerReadTransform, removeReadTransform } from "./read-transforms.js";
 
 const metadataCache = new MetadataCache();
 const contentCache = new ContentCache();
@@ -43,6 +44,8 @@ export const fsShim = {
   _metadataCache: metadataCache,
   _contentCache: contentCache,
   _watcherClient: watcherClient,
+  _registerReadTransform: registerReadTransform,
+  _removeReadTransform: removeReadTransform,
 
   async _init(basePath) {
     const tree = await transport.fetchTree(basePath);

@@ -1,5 +1,6 @@
 import { markLocalOp } from "./echo-guard.js";
 import { isInputCachePath, inputCacheGet } from "./input-cache.js";
+import { applyReadTransform } from "./read-transforms.js";
 
 export function createFsPromises(metadataCache, contentCache, transport) {
   return {
@@ -46,60 +47,52 @@ export function createFsPromises(metadataCache, contentCache, transport) {
 
       const wantText = encoding === "utf8" || encoding === "utf-8";
 
+      let result = null;
+
       // Check input cache for files picked via browser file dialogs.
       if (isInputCachePath(path)) {
-        const inputData = inputCacheGet(path);
-
-        if (inputData !== null) {
-          if (wantText) {
-            return typeof inputData === "string"
-              ? inputData
-              : new TextDecoder().decode(inputData);
-          }
-
-          if (typeof inputData === "string") {
-            return new TextEncoder().encode(inputData);
-          }
-
-          return inputData;
-        }
+        result = inputCacheGet(path);
       }
 
-      const meta = metadataCache.get(path);
-      if (meta && meta.type === "directory") {
-        const e = new Error("EISDIR: illegal operation on a directory, read");
-        e.code = "EISDIR";
-        throw e;
-      }
+      if (result === null) {
+        const meta = metadataCache.get(path);
 
-      if (!meta && path) {
-        const e = new Error(
-          `ENOENT: no such file or directory, open '${path}'`,
-        );
-        e.code = "ENOENT";
-        throw e;
-      }
-
-      const cached = contentCache.get(path);
-
-      if (cached !== null) {
-        if (wantText) {
-          return typeof cached === "string"
-            ? cached
-            : new TextDecoder().decode(cached);
+        if (meta && meta.type === "directory") {
+          const e = new Error("EISDIR: illegal operation on a directory, read");
+          e.code = "EISDIR";
+          throw e;
         }
 
-        // binary. ensure we return a proper Uint8Array with .buffer
-        if (typeof cached === "string") {
-          return new TextEncoder().encode(cached);
+        if (!meta && path) {
+          const e = new Error(
+            `ENOENT: no such file or directory, open '${path}'`,
+          );
+          e.code = "ENOENT";
+          throw e;
         }
 
-        return cached;
+        result = contentCache.get(path);
       }
 
-      const data = await transport.readFile(path, encoding);
-      contentCache.set(path, data);
-      return data;
+      if (result === null) {
+        result = await transport.readFile(path, encoding);
+        contentCache.set(path, result);
+      }
+
+      // Apply registered read transforms (e.g., patching synced config files).
+      result = applyReadTransform(path, result);
+
+      if (wantText) {
+        return typeof result === "string"
+          ? result
+          : new TextDecoder().decode(result);
+      }
+
+      if (typeof result === "string") {
+        return new TextEncoder().encode(result);
+      }
+
+      return result;
     },
 
     async writeFile(path, data, encoding) {

@@ -1,5 +1,6 @@
 import { markLocalOp } from "./echo-guard.js";
 import { isInputCachePath, inputCacheGet } from "./input-cache.js";
+import { applyReadTransform } from "./read-transforms.js";
 
 export function createFsSync(metadataCache, contentCache, transport) {
   return {
@@ -58,6 +59,8 @@ export function createFsSync(metadataCache, contentCache, transport) {
         encoding = encoding?.encoding;
       }
 
+      const wantText = encoding === "utf8" || encoding === "utf-8";
+
       const meta = metadataCache.get(path);
       if (meta && meta.type === "directory") {
         const e = new Error("EISDIR: illegal operation on a directory, read");
@@ -65,39 +68,37 @@ export function createFsSync(metadataCache, contentCache, transport) {
         throw e;
       }
 
+      let result = null;
+
       // Check input cache for files picked via browser file dialogs.
-      // These never hit the server; they exist only in browser memory.
       if (isInputCachePath(path)) {
         const inputData = inputCacheGet(path);
 
         if (inputData !== null) {
-          if (encoding === "utf8" || encoding === "utf-8") {
-            return typeof inputData === "string"
-              ? inputData
-              : new TextDecoder().decode(inputData);
-          }
-
-          return inputData;
+          result = inputData;
         }
       }
 
-      const cached = contentCache.get(path);
-      if (cached !== null) {
-        if (encoding === "utf8" || encoding === "utf-8") {
-          return typeof cached === "string"
-            ? cached
-            : new TextDecoder().decode(cached);
-        }
-
-        return cached;
+      if (result === null) {
+        result = contentCache.get(path);
       }
 
-      console.warn("[shim:fs] readFileSync cache miss, using sync XHR:", path);
+      if (result === null) {
+        console.warn("[shim:fs] readFileSync cache miss, using sync XHR:", path);
+        result = transport.readFileSync(path, encoding);
+        contentCache.set(path, result);
+      }
 
-      const data = transport.readFileSync(path, encoding);
-      contentCache.set(path, data);
+      // Apply registered read transforms (e.g., patching synced config files).
+      result = applyReadTransform(path, result);
 
-      return data;
+      if (wantText) {
+        return typeof result === "string"
+          ? result
+          : new TextDecoder().decode(result);
+      }
+
+      return result;
     },
 
     writeFileSync(path, data, encoding) {

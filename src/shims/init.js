@@ -2,6 +2,7 @@ import { fsShim } from "./fs/index.js";
 import { installRequestUrlShim } from "./request-url.js";
 import { vaultService } from "../services/vault-service.js";
 import { showPluginInstallDialog } from "../ui/bootstrap.js";
+import { registerReadTransform } from "./fs/read-transforms.js";
 
 function resolveVaultId() {
   const urlParams = new URLSearchParams(window.location.search);
@@ -107,11 +108,71 @@ function initPluginPrompt() {
   });
 }
 
+// if headless sync is active, we transform reads of core-plugins.json to hide the sync setting from Obsidian.
+// this prevents headless sync from being disabled as a result of a different device syncing "Active core plugins list".
+// i.e ensure Ignis always has sync: false if headless sync is active.
+// This may be somewhat overengineered. Could revisit later.
+function initCoreSyncGuard() {
+  const vaultId = window.__currentVaultId;
+
+  if (!vaultId) {
+    return;
+  }
+
+  try {
+    const xhr = new XMLHttpRequest();
+
+    xhr.open("GET", "/api/plugins", false);
+    xhr.send();
+
+    if (xhr.status !== 200) {
+      return;
+    }
+
+    const plugins = JSON.parse(xhr.responseText);
+    const headlessSync = plugins.find(
+      (p) => p.id === "headless-sync" && p.bundledPluginId,
+    );
+
+    if (!headlessSync || !headlessSync.enabledVaults.includes(vaultId)) {
+      return;
+    }
+
+    console.log(
+      "[ignis] Headless sync active for this vault, patching core-plugins.json reads",
+    );
+    window.__ignisHeadlessSyncActive = true;
+
+    registerReadTransform(".obsidian/core-plugins.json", (data) => {
+      if (!window.__ignisHeadlessSyncActive) {
+        return data;
+      }
+
+      let text =
+        typeof data === "string" ? data : new TextDecoder().decode(data);
+
+      try {
+        const config = JSON.parse(text);
+
+        if (config.sync === true) {
+          config.sync = false;
+          return JSON.stringify(config);
+        }
+      } catch {}
+
+      return data;
+    });
+  } catch (e) {
+    console.warn("[ignis] Failed to init core sync guard:", e);
+  }
+}
+
 export function initialize() {
   resolveVaultId();
   initVaultConfig();
   initVaultList();
   initMetadataCache();
+  initCoreSyncGuard();
   installRequestUrlShim();
   initPluginPrompt();
 }

@@ -2,7 +2,7 @@ const { Plugin } = require("obsidian");
 const { HeadlessSyncSettingTab } = require("./settings-tab");
 const { WsListener } = require("./ws-listener");
 const { initSyncStatusBar } = require("./sync-status-bar");
-const { startCoreSyncWatcher } = require("./core-sync-guard");
+const { startCoreSyncGuard } = require("./core-sync-guard");
 const api = require("./api");
 
 class IgnisHeadlessSyncPlugin extends Plugin {
@@ -14,7 +14,7 @@ class IgnisHeadlessSyncPlugin extends Plugin {
 
     this.addSettingTab(new HeadlessSyncSettingTab(this.app, this));
 
-    this._coreSyncWatcher = startCoreSyncWatcher(this, api, this.wsListener);
+    this._coreSyncGuard = startCoreSyncGuard(this, api, this.wsListener);
 
     this.addCommand({
       id: "start-sync",
@@ -53,9 +53,11 @@ class IgnisHeadlessSyncPlugin extends Plugin {
   }
 
   onunload() {
-    if (this._coreSyncWatcher) {
-      this._coreSyncWatcher.cleanup();
-      this._coreSyncWatcher = null;
+    window.__ignisHeadlessSyncActive = false;
+
+    if (this._coreSyncGuard) {
+      this._coreSyncGuard.cleanup();
+      this._coreSyncGuard = null;
     }
 
     if (this._syncStatusBarCleanup) {

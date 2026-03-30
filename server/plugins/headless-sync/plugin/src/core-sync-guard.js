@@ -1,9 +1,14 @@
 const { Notice } = require("obsidian");
-const fs = require("fs"); // Using fs shim
+const fs = require("fs");
 
+const CORE_PLUGINS_PATH = ".obsidian/core-plugins.json";
+
+// Reads core-plugins.json via the fs shim. When headless sync is active,
+// the shim patches sync: false, so this returns false. When the flag is
+// cleared (user action), this returns the real value.
 function isCoreSyncEnabled() {
   try {
-    const data = fs.readFileSync(".obsidian/core-plugins.json", "utf-8");
+    const data = fs.readFileSync(CORE_PLUGINS_PATH, "utf-8");
     const config = JSON.parse(data);
     return config.sync === true;
   } catch {
@@ -27,11 +32,31 @@ function showConflictWarning(title, message) {
   });
 }
 
-function startCoreSyncWatcher(plugin, api, wsListener) {
+function startCoreSyncGuard(plugin, api, wsListener) {
+  const app = plugin.app;
+  const vaultId = app.vault.getName();
+
+  // Monkey-patch syncPlugin.enable() to clear the shim flag before
+  // Obsidian writes core-plugins.json. This ensures the read transform
+  // doesn't block a user-initiated core sync enable.
+  const syncPlugin = app.internalPlugins.getPluginById("sync");
+  let origEnable = null;
+
+  if (syncPlugin) {
+    origEnable = syncPlugin.enable.bind(syncPlugin);
+
+    syncPlugin.enable = function (...args) {
+      window.__ignisHeadlessSyncActive = false;
+      api.stopSync(vaultId).catch(() => {});
+      return origEnable(...args);
+    };
+  }
+
+  // Watch for core-plugins.json changes via WebSocket.
   let wasEnabled = isCoreSyncEnabled();
 
   const rawHandler = (msg) => {
-    if (msg.type === "modified" && msg.path === ".obsidian/core-plugins.json") {
+    if (msg.type === "modified" && msg.path === CORE_PLUGINS_PATH) {
       handleCoreSyncChange();
     }
   };
@@ -42,9 +67,6 @@ function startCoreSyncWatcher(plugin, api, wsListener) {
     const enabled = isCoreSyncEnabled();
 
     if (enabled && !wasEnabled) {
-      const vaultId = plugin.app.vault.getName();
-
-      api.stopSync(vaultId).catch(() => {});
       showConflictWarning(
         "Headless Sync Stopped",
         "Obsidian Sync has been enabled. Headless Sync has been automatically " +
@@ -59,11 +81,15 @@ function startCoreSyncWatcher(plugin, api, wsListener) {
   return {
     cleanup() {
       wsListener.offRaw();
+
+      if (syncPlugin && origEnable) {
+        syncPlugin.enable = origEnable;
+      }
     },
   };
 }
 
 module.exports = {
   isCoreSyncEnabled,
-  startCoreSyncWatcher,
+  startCoreSyncGuard,
 };

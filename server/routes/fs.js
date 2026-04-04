@@ -552,3 +552,5 @@ router.get("/download-zip", async (req, res) => {
 });
 
 module.exports = router;
+module.exports.resolveVaultPath = resolveVaultPath;
+module.exports.encodeContentDispositionFilename = encodeContentDispositionFilename;

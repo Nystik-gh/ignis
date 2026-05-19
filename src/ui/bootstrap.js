@@ -1,4 +1,4 @@
-import { vaultService } from "../services/vault-service.js";
+import { vaultService } from "@ignis/services";
 
 function showVaultManager() {
   if (document.querySelector(".vault-manager-overlay")) return;

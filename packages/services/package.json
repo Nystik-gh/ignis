@@ -1,5 +1,6 @@
 {
   "name": "@ignis/services",
   "version": "0.0.0-internal",
-  "private": true
+  "private": true,
+  "main": "src/index.js"
 }

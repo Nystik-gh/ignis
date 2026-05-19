@@ -1,5 +1,5 @@
 import { showVaultManager } from "../ui-registry.js";
-import { vaultService } from "../../services/vault-service.js";
+import { vaultService } from "@ignis/services";
 
 const listeners = new Map();
 

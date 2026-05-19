@@ -1,6 +1,6 @@
 import { fsShim } from "./fs/index.js";
 import { installRequestUrlShim } from "./request-url.js";
-import { vaultService } from "../services/vault-service.js";
+import { vaultService } from "@ignis/services";
 import { showPluginInstallDialog } from "./ui-registry.js";
 import { registerReadTransform } from "./fs/transforms.js";
 import {

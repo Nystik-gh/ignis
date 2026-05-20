@@ -1,25 +1,9 @@
 const esbuild = require("esbuild");
 const path = require("path");
 
-const { version: ignisVersion } = require("./package.json");
-
 Promise.all([
-  // Build shim-loader.js
-  esbuild.build({
-    entryPoints: [path.join(__dirname, "src", "shims", "loader.js")],
-    bundle: true,
-    outfile: path.join(__dirname, "dist", "shim-loader.js"),
-    format: "iife",
-    platform: "browser",
-    target: ["chrome90"],
-    alias: {
-      path: "path-browserify",
-    },
-    define: {
-      __IGNIS_VERSION__: JSON.stringify(ignisVersion),
-    },
-    logLevel: "info",
-  }),
+  // Build shim-loader.js (delegated to packages/shim)
+  require("./packages/shim/build.js"),
 
   // Build ignis-ui.js (delegated to packages/ui)
   require("./packages/ui/build.js"),

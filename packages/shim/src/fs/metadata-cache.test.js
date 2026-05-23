@@ -49,7 +49,7 @@ describe("MetadataCache populate and merge", () => {
     expect(cache.has("added.md")).toBe(true);
   });
 
-  it("populate then merge -- pre-existing entries survive merge", () => {
+  it("populate then merge. pre-existing entries survive merge", () => {
     const cache = new MetadataCache();
     cache.populate({
       "a.md": { type: "file", size: 1 },
@@ -112,7 +112,7 @@ describe("MetadataCache readdir", () => {
       "foo/sub/deep.md": { type: "file", size: 3 },
       "foobar/other.md": { type: "file", size: 4 },
       "root.md": { type: "file", size: 5 },
-      "docs": { type: "directory", size: 0 },
+      docs: { type: "directory", size: 0 },
     });
     return cache;
   }

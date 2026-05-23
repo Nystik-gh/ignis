@@ -4,7 +4,11 @@ const path = require("path");
 const compression = require("compression");
 const config = require("./config");
 const { getVersion } = require("./version");
-const { setupWebSocket, watcher, writeCoalescer } = require("@ignis/server-core");
+const {
+  setupWebSocket,
+  watcher,
+  writeCoalescer,
+} = require("@ignis/server-core");
 const { updateBridgePluginInAllVaults } = require("./bridge-plugin");
 const { initPlugins, shutdownPlugins } = require("./plugin-system/manager");
 const pluginRoutes = require("./routes/plugins");
@@ -92,9 +96,7 @@ app.use("/vault-files", (req, res, next) => {
   express.static(vaultPath)(req, res, next);
 });
 
-// Serve our own index.html. Obsidian's scripts are discovered at startup
-// and injected dynamically by the client -- no Obsidian files are read or
-// transformed in the response.
+// Serve our own index.html. Obsidian's scripts are discovered at startup and injected dynamically by the client.
 let cachedHtml = null;
 
 function buildIndexHtml() {

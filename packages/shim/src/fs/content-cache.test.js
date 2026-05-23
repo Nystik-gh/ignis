@@ -62,7 +62,7 @@ describe("ContentCache LRU eviction", () => {
     cache.set("b.md", "bbbb"); // 4, accessedAt=1001
     // Touch a.md so b.md becomes the LRU
     cache.get("a.md"); // a.md accessedAt=1002
-    cache.set("c.md", "cccc"); // 4 -- should evict b.md (1001), not a.md (1002)
+    cache.set("c.md", "cccc"); // 4, should evict b.md (1001), not a.md (1002)
     expect(cache.has("a.md")).toBe(true);
     expect(cache.has("b.md")).toBe(false);
     expect(cache.has("c.md")).toBe(true);
@@ -73,7 +73,7 @@ describe("ContentCache LRU eviction", () => {
   it("entry larger than maxSize still gets stored", () => {
     const cache = new ContentCache(5);
     cache.set("small.md", "ab"); // 2
-    cache.set("big.md", "abcdefghij"); // 10 -- larger than maxSize
+    cache.set("big.md", "abcdefghij"); // 10, larger than maxSize
     expect(cache.has("small.md")).toBe(false);
     expect(cache.has("big.md")).toBe(true);
     expect(cache.currentBytes).toBe(10);

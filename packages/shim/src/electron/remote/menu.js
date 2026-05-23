@@ -31,6 +31,18 @@ export class menuShim {
   }
 
   closePopup() {}
+
+  // If the appearance guard in native-menu-guard.js ever fails to block the native-menu path, warn instead of throwing.
+  on(channel, listener) {
+    console.warn(
+      `[shim:Menu] Menu.on(${channel}) called; native-menu path escaped the guard.`,
+    );
+    return this;
+  }
+
+  off(channel, listener) {
+    return this;
+  }
 }
 
 export class menuItemShim {

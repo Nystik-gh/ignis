@@ -148,9 +148,7 @@ async function flushAll() {
 
   const timeout = new Promise((resolve) => {
     setTimeout(() => {
-      console.warn(
-        "[write-coalesce] Flush timeout -- some writes may be lost",
-      );
+      console.warn("[write-coalesce] Flush timeout. Some writes may be lost");
       resolve();
     }, FLUSH_TIMEOUT_MS);
   });

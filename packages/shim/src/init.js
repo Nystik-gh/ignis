@@ -10,6 +10,7 @@ import {
 } from "./workspace.js";
 import { prefetchVaultContent } from "./fs/indexer-prefetch.js";
 import { autoTrustDemoVaults, maybeProvisionDemoVault } from "./demo.js";
+import { initNativeMenuGuard } from "./native-menu-guard.js";
 
 function resolveVaultId() {
   const urlParams = new URLSearchParams(window.location.search);
@@ -221,6 +222,7 @@ export function initialize() {
   resolveVaultId();
   resolveWorkspaceName();
   loadPresetIfRequested();
+  initNativeMenuGuard(window.__currentVaultId);
 
   const bootstrap = fetchBootstrap();
 

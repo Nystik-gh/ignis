@@ -232,6 +232,7 @@ export function initialize() {
     autoTrustDemoVaults(bootstrap.vaultList);
     applyTree(bootstrap.tree);
     applyCoreSyncGuard(bootstrap.plugins);
+    window.__ignisVirtualPlugins = bootstrap.virtualPlugins || [];
 
     // Race the indexer: batch-fetch text content into ContentCache so
     // Obsidian's startup indexing reads hit the cache instead of the network.

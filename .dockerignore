@@ -12,4 +12,3 @@ data
 tmp
 **/dist
 packages/bridge/main.js
-apps/ignis-server/server/plugins/*/obsidian/main.js

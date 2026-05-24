@@ -103,3 +103,42 @@ export async function extractObsidianModule() {
   console.log("[ignis] obsidian module captured");
   return captured;
 }
+
+export async function loadVirtualPlugin(entry) {
+  if (entry.cssUrl) {
+    const link = document.createElement("link");
+    link.rel = "stylesheet";
+    link.href = entry.cssUrl;
+    link.setAttribute("data-ignis-virtual-plugin", entry.id);
+    document.head.appendChild(link);
+  }
+
+  const res = await fetch(entry.scriptUrl);
+
+  if (!res.ok) {
+    throw new Error(
+      `fetch ${entry.scriptUrl} -> ${res.status} ${res.statusText}`,
+    );
+  }
+
+  const src =
+    (await res.text()) + `\n//# sourceURL=ignis-virtual/${entry.id}.js`;
+
+  const module = { exports: {} };
+  const localRequire = (name) =>
+    name === "obsidian" ? window.__obsidian : window.require(name);
+
+  new Function("module", "exports", "require", src)(
+    module,
+    module.exports,
+    localRequire,
+  );
+
+  const PluginClass = module.exports.default || module.exports;
+  const instance = new PluginClass(window.app, entry.manifest);
+
+  await instance.onload();
+
+  window.__ignis.plugins = window.__ignis.plugins || {};
+  window.__ignis.plugins[entry.id] = { instance, manifest: entry.manifest };
+}

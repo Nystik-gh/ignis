@@ -9,7 +9,11 @@ const fsp = fs.promises;
 const path = require("path");
 const zlib = require("zlib");
 const config = require("../config");
-const { getDiscoveredPlugins } = require("../plugin-system/manager");
+const {
+  getDiscoveredPlugins,
+  getVirtualPluginsForVault,
+} = require("../plugin-system/manager");
+const { getVersion } = require("../version");
 
 const router = express.Router();
 
@@ -135,6 +139,7 @@ async function buildEntry(vaultId) {
     tree,
     // In demo mode, hide server-side plugins from the client.
     plugins: config.demoMode ? [] : getDiscoveredPlugins(),
+    virtualPlugins: getVirtualPluginsForVault(vaultId, getVersion()),
   };
 
   const jsonBuf = Buffer.from(JSON.stringify(response));

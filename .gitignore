@@ -4,6 +4,5 @@ investigation/
 vaults/
 packages/*/dist/
 packages/bridge/main.js
-apps/ignis-server/server/plugins/*/obsidian/main.js
 demo-vaults/
 data/

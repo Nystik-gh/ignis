@@ -58,7 +58,7 @@ COPY packages/bridge/styles.css ./packages/bridge/
 COPY --from=build /app/packages/shim/dist/shim-loader.js ./packages/shim/dist/shim-loader.js
 COPY --from=build /app/packages/ui/dist/ignis-ui.js ./packages/ui/dist/ignis-ui.js
 COPY --from=build /app/packages/bridge/main.js ./packages/bridge/main.js
-COPY --from=build /app/apps/ignis-server/server/plugins/headless-sync/obsidian/main.js ./apps/ignis-server/server/plugins/headless-sync/obsidian/main.js
+COPY --from=build /app/apps/ignis-server/server/plugins/headless-sync/obsidian/dist/ ./apps/ignis-server/server/plugins/headless-sync/obsidian/dist/
 
 RUN chmod +x /app/apps/ignis-server/scripts/entrypoint.sh
 

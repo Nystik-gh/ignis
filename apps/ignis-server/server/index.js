@@ -13,7 +13,11 @@ const {
   BRIDGE_PLUGIN_ID,
   migratePluginsFromAllVaults,
 } = require("./bridge-plugin");
-const { initPlugins, shutdownPlugins } = require("./plugin-system/manager");
+const {
+  initPlugins,
+  shutdownPlugins,
+  getBundledPluginDirs,
+} = require("./plugin-system/manager");
 const pluginRoutes = require("./routes/plugins");
 writeCoalescer.configure({ writeCoalesceMs: config.writeCoalesceMs });
 const { flushAll } = writeCoalescer;
@@ -173,8 +177,19 @@ const server = app.listen(config.port, async () => {
   console.log(`[ignis] Vault root: ${config.vaultRoot}`);
   console.log(`[ignis] Vaults: ${Object.keys(config.vaults).join(", ")}`);
 
-  await migratePluginsFromAllVaults(config.vaultRoot, [BRIDGE_PLUGIN_ID]);
   await initPlugins({ app, config, wss, watcher });
+
+  const bundledPluginDirs = getBundledPluginDirs();
+
+  for (const { distDir } of bundledPluginDirs) {
+    app.use(express.static(distDir));
+  }
+
+  await migratePluginsFromAllVaults(config.vaultRoot, [
+    BRIDGE_PLUGIN_ID,
+    ...bundledPluginDirs.map((d) => d.bundledPluginId),
+  ]);
+
   bootstrapRoutes
     .warmUp()
     .catch((e) => console.warn("[bootstrap] warm-up error:", e.message));

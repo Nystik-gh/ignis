@@ -4,7 +4,10 @@ import { installCssOverrides } from "./css-overrides.js";
 import { initialize } from "./init.js";
 import { fsShim } from "./fs/index.js";
 import { registerUI } from "./ui-registry.js";
-import { extractObsidianModule } from "./virtual-plugin-loader.js";
+import {
+  extractObsidianModule,
+  loadVirtualPlugin,
+} from "./virtual-plugin-loader.js";
 
 // __IGNIS_VERSION__ is replaced at build time from package.json.
 window.__ignis = { version: __IGNIS_VERSION__ };
@@ -48,6 +51,15 @@ extractObsidianModule()
     const bridge = new IgnisBridgePlugin(window.app, BRIDGE_MANIFEST);
     await bridge.onload();
     console.log("[ignis] bridge loaded");
+
+    for (const vp of window.__ignisVirtualPlugins || []) {
+      try {
+        await loadVirtualPlugin(vp);
+        console.log(`[ignis] virtual plugin loaded: ${vp.id}`);
+      } catch (e) {
+        console.error(`[ignis] virtual plugin load failed: ${vp.id}`, e);
+      }
+    }
   })
   .catch((e) => console.error("[ignis] bridge load failed:", e));
 

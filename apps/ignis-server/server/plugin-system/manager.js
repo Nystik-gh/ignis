@@ -3,10 +3,6 @@ const path = require("path");
 const express = require("express");
 const { discoverPlugins } = require("./discovery");
 const configStore = require("./config-store");
-const {
-  installObsidianPlugin,
-  removeObsidianPlugin,
-} = require("./obsidian-plugin");
 
 let discoveredPlugins = new Map();
 const loadedPlugins = new Map();
@@ -48,18 +44,6 @@ async function initPlugins(ctx) {
 
         if (!vaultPath) {
           continue;
-        }
-
-        const discovered = discoveredPlugins.get(pluginId);
-
-        if (discovered.obsidianPlugin) {
-          try {
-            await installObsidianPlugin(discovered.obsidianPlugin, vaultPath);
-          } catch (e) {
-            console.error(
-              `[plugins] Failed to verify bundled plugin for ${pluginId} in ${vaultId}: ${e.message}`,
-            );
-          }
         }
 
         const loaded = loadedPlugins.get(pluginId);
@@ -182,25 +166,6 @@ async function enablePluginForVault(pluginId, vaultId) {
     await loadPlugin(pluginId);
   }
 
-  if (discovered.obsidianPlugin) {
-    try {
-      const result = await installObsidianPlugin(
-        discovered.obsidianPlugin,
-        vaultPath,
-      );
-
-      if (result.installed) {
-        console.log(
-          `[plugins] Installed bundled Obsidian plugin for ${pluginId} in vault: ${vaultId}`,
-        );
-      }
-    } catch (e) {
-      console.error(
-        `[plugins] Failed to install bundled plugin for ${pluginId}: ${e.message}`,
-      );
-    }
-  }
-
   const loaded = loadedPlugins.get(pluginId);
 
   if (loaded?.module?.onVaultEnabled) {
@@ -227,25 +192,6 @@ async function disablePluginForVault(pluginId, vaultId) {
     await loaded.module.onVaultDisabled(vaultId, vaultPath);
   }
 
-  if (discovered.obsidianPlugin) {
-    try {
-      const result = await removeObsidianPlugin(
-        discovered.obsidianPlugin,
-        vaultPath,
-      );
-
-      if (result.removed) {
-        console.log(
-          `[plugins] Removed bundled Obsidian plugin for ${pluginId} from vault: ${vaultId}`,
-        );
-      }
-    } catch (e) {
-      console.error(
-        `[plugins] Failed to remove bundled plugin for ${pluginId}: ${e.message}`,
-      );
-    }
-  }
-
   const enabledVaults = configStore.getEnabledVaults(pluginConfig, pluginId);
   const updated = enabledVaults.filter((id) => id !== vaultId);
   configStore.setEnabledVaults(pluginConfig, pluginId, updated);
@@ -254,6 +200,47 @@ async function disablePluginForVault(pluginId, vaultId) {
   if (updated.length === 0) {
     await unloadPlugin(pluginId);
   }
+}
+
+function getBundledPluginDirs() {
+  const dirs = [];
+
+  for (const [, discovered] of discoveredPlugins) {
+    if (discovered.obsidianPlugin && discovered.bundledPluginId) {
+      dirs.push({
+        bundledPluginId: discovered.bundledPluginId,
+        distDir: path.join(discovered.obsidianPlugin, "dist"),
+      });
+    }
+  }
+
+  return dirs;
+}
+
+function getVirtualPluginsForVault(vaultId, version) {
+  const v = version ? `?v=${version}` : "";
+  const result = [];
+
+  for (const [pluginId, discovered] of discoveredPlugins) {
+    if (!discovered.obsidianPlugin || !discovered.bundledPluginId) {
+      continue;
+    }
+
+    const enabledVaults = configStore.getEnabledVaults(pluginConfig, pluginId);
+
+    if (!enabledVaults.includes(vaultId)) {
+      continue;
+    }
+
+    result.push({
+      id: discovered.bundledPluginId,
+      scriptUrl: `/${discovered.bundledPluginId}.js${v}`,
+      cssUrl: `/${discovered.bundledPluginId}.css${v}`,
+      manifest: discovered.bundledManifest,
+    });
+  }
+
+  return result;
 }
 
 function getDiscoveredPlugins() {
@@ -280,4 +267,6 @@ module.exports = {
   enablePluginForVault,
   disablePluginForVault,
   getDiscoveredPlugins,
+  getBundledPluginDirs,
+  getVirtualPluginsForVault,
 };

@@ -40,17 +40,16 @@ function discoverPlugins(pluginsDir) {
       continue;
     }
 
-    let bundledPluginId = null;
+    let bundledManifest = null;
 
     if (plugin.obsidianPlugin) {
       try {
-        const manifest = JSON.parse(
+        bundledManifest = JSON.parse(
           fs.readFileSync(
             path.join(plugin.obsidianPlugin, "manifest.json"),
             "utf-8",
           ),
         );
-        bundledPluginId = manifest.id;
       } catch {
         // No valid bundled plugin manifest
       }
@@ -61,7 +60,8 @@ function discoverPlugins(pluginsDir) {
       name: plugin.name,
       description: plugin.description || "",
       obsidianPlugin: plugin.obsidianPlugin || null,
-      bundledPluginId,
+      bundledPluginId: bundledManifest ? bundledManifest.id : null,
+      bundledManifest,
       module: plugin,
     });
 

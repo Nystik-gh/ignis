@@ -1,4 +1,4 @@
-const { Modal, Setting, Notice } = require("obsidian");
+import { Modal, Setting, Notice } from "obsidian";
 
 // Modal editor for a list of string entries (the proxy host allowlist).
 class ListEditorModal extends Modal {
@@ -131,4 +131,4 @@ class ListEditorModal extends Modal {
   }
 }
 
-module.exports = { ListEditorModal };
+export { ListEditorModal };

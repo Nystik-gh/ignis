@@ -1,4 +1,4 @@
-const { FuzzySuggestModal } = require("obsidian");
+import { FuzzySuggestModal } from "obsidian";
 
 class WorkspacePickerModal extends FuzzySuggestModal {
   constructor(app) {
@@ -29,4 +29,4 @@ class WorkspacePickerModal extends FuzzySuggestModal {
   }
 }
 
-module.exports = { WorkspacePickerModal };
+export { WorkspacePickerModal };

@@ -1,7 +1,7 @@
-const { Setting, Notice } = require("obsidian");
-const { isDemoMode } = require("../demo-guards");
-const { stripBuildMetadata, isNewer } = require("../util/version");
-const { ListEditorModal } = require("./list-editor-modal");
+import { Setting, Notice } from "obsidian";
+import { isDemoMode } from "../demo-guards.js";
+import { stripBuildMetadata, isNewer } from "../util/version.js";
+import { ListEditorModal } from "./list-editor-modal.js";
 
 const GITHUB_URL = "https://github.com/Nystik-gh/ignis";
 const GITHUB_API_LATEST =
@@ -353,4 +353,4 @@ function listField(containerEl, { name, desc, value, key, app, modal }) {
   return setting;
 }
 
-module.exports = { display };
+export { display };

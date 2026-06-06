@@ -1,4 +1,4 @@
-const { setIcon } = require("obsidian");
+import { setIcon } from "obsidian";
 
 function createNavEl(tab, setting) {
   const nav = document.createElement("div");
@@ -86,4 +86,4 @@ function findGroupByTitle(tabHeadersEl, title) {
   return null;
 }
 
-module.exports = { createNavEl, createTab, createGroup, findGroupByTitle };
+export { createNavEl, createTab, createGroup, findGroupByTitle };

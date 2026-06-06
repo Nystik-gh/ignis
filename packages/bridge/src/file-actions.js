@@ -1,4 +1,4 @@
-const { Notice, TFile, TFolder } = require("obsidian");
+import { Notice, TFile, TFolder } from "obsidian";
 
 function getVaultId() {
   return window.__currentVaultId || "";
@@ -92,4 +92,4 @@ function addFolderMenuItems(menu, folder, app) {
   });
 }
 
-module.exports = { showFilePicker, addFileMenuItems, addFolderMenuItems };
+export { showFilePicker, addFileMenuItems, addFolderMenuItems };

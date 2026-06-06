@@ -1,5 +1,5 @@
-const { Setting, Notice } = require("obsidian");
-const { reconcilePluginTabs } = require("./plugin-tabs");
+import { Setting, Notice } from "obsidian";
+import { reconcilePluginTabs } from "./plugin-tabs.js";
 
 function getVaultId() {
   return window.__currentVaultId || "";
@@ -94,4 +94,4 @@ function display(containerEl, app) {
     });
 }
 
-module.exports = { display };
+export { display };

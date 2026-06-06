@@ -1,17 +1,17 @@
-const { Plugin, TFile, TFolder } = require("obsidian");
-const {
+import { Plugin, TFile, TFolder } from "obsidian";
+import {
   showFilePicker,
   addFileMenuItems,
   addFolderMenuItems,
-} = require("./file-actions");
-const {
+} from "./file-actions.js";
+import {
   patchSettingsModal,
   unpatchSettingsModal,
-} = require("./settings/inject");
-const pluginRegistry = require("./plugin-registry");
-const { initStatusBar } = require("./status-bar");
-const { WorkspacePickerModal } = require("./workspace-picker");
-const { startDemoGuards, stopDemoGuards } = require("./demo-guards");
+} from "./settings/inject.js";
+import * as pluginRegistry from "./plugin-registry.js";
+import { initStatusBar } from "./status-bar.js";
+import { WorkspacePickerModal } from "./workspace-picker.js";
+import { startDemoGuards, stopDemoGuards } from "./demo-guards.js";
 
 class IgnisBridgePlugin extends Plugin {
   async onload() {
@@ -65,4 +65,4 @@ class IgnisBridgePlugin extends Plugin {
   }
 }
 
-module.exports = IgnisBridgePlugin;
+export default IgnisBridgePlugin;

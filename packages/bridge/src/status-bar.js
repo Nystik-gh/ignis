@@ -32,4 +32,4 @@ function initStatusBar(plugin) {
   return ws.onStateChange(render);
 }
 
-module.exports = { initStatusBar };
+export { initStatusBar };

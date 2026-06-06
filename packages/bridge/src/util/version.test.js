@@ -1,8 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { createRequire } from "module";
-
-const require = createRequire(import.meta.url);
-const { stripBuildMetadata, isNewer } = require("./version.js");
+import { stripBuildMetadata, isNewer } from "./version.js";
 
 describe("isNewer", () => {
   it("is true when latest is strictly newer", () => {

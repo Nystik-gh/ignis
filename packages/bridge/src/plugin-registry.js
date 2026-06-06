@@ -34,4 +34,4 @@ function getKnownIds() {
   return knownIds;
 }
 
-module.exports = { refresh, isIgnisPlugin, addId, getKnownIds };
+export { refresh, isIgnisPlugin, addId, getKnownIds };

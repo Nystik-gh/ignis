@@ -52,7 +52,7 @@ if (window.__currentVaultId) {
 
 extractObsidianModule()
   .then(async () => {
-    // Dynamic import so bridge's top-level require("obsidian") fires after installRequire + extractObsidianModule.
+    // Dynamic import so the bridge's top-level obsidian import resolves after installRequire + extractObsidianModule.
     const mod = await import("@ignis/bridge");
     const IgnisBridgePlugin = mod.default || mod;
     const bridge = new IgnisBridgePlugin(window.app, BRIDGE_MANIFEST);

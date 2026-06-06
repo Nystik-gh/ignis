@@ -1,14 +1,14 @@
-const generalTab = require("./general-tab");
-const serverPluginsTab = require("./server-plugins-tab");
-const { createNavEl, createTab, createGroup } = require("./settings-ui");
-const {
+import * as generalTab from "./general-tab.js";
+import * as serverPluginsTab from "./server-plugins-tab.js";
+import { createNavEl, createTab, createGroup } from "./settings-ui.js";
+import {
   allIgnisNavEls,
   setupPluginTabs,
   reconcilePluginTabs,
   hideIgnisFromCommunityPlugins,
   restoreCommunityPlugins,
   clearOwnedPluginIds,
-} = require("./plugin-tabs");
+} from "./plugin-tabs.js";
 
 function removeExistingIgnisGroups(tabHeadersEl) {
   const groups = tabHeadersEl.querySelectorAll(".vertical-tab-header-group");
@@ -139,4 +139,4 @@ function unpatchSettingsModal(plugin) {
   clearOwnedPluginIds();
 }
 
-module.exports = { patchSettingsModal, unpatchSettingsModal, reconcilePluginTabs };
+export { patchSettingsModal, unpatchSettingsModal, reconcilePluginTabs };

@@ -1,6 +1,6 @@
-const { setIcon } = require("obsidian");
-const { findGroupByTitle } = require("./settings-ui");
-const { isIgnisPlugin } = require("../plugin-registry");
+import { setIcon } from "obsidian";
+import { findGroupByTitle } from "./settings-ui.js";
+import { isIgnisPlugin } from "../plugin-registry.js";
 
 // All ignis-managed nav elements (both Ignis group and Ignis Core Plugins group).
 // Shared with inject.js so the openTab patch can manage is-active across all of them.
@@ -232,7 +232,7 @@ function clearOwnedPluginIds() {
   ownedPluginIds.clear();
 }
 
-module.exports = {
+export {
   allIgnisNavEls,
   setupPluginTabs,
   reconcilePluginTabs,

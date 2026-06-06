@@ -36,4 +36,4 @@ function isNewer(latest, current) {
   return false;
 }
 
-module.exports = { stripBuildMetadata, parseSemver, isNewer };
+export { stripBuildMetadata, parseSemver, isNewer };

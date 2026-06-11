@@ -14,9 +14,58 @@ The self-hosted Docker variant of Ignis. For the project overview, feature list,
 
 ## Authentication
 
-Ignis has **no built-in authentication** and serves plain HTTP by default. Both authentication and TLS termination are expected to be handled by whatever you put in front of it.
+Ignis now includes **built-in authentication** that you can enable via environment variables. No reverse proxy required.
 
-If you are exposing Ignis to the internet, **you should really** put an authentication layer in front of it. Options include:
+### Built-in Auth (new)
+
+Set one or both of these environment variables to enable authentication:
+
+| Variable | Description |
+| -------- | ----------- |
+| `IGNIS_AUTH_USER` | Username for Basic Auth |
+| `IGNIS_AUTH_PASS` | Password (plain text — hashed on first start) |
+| `IGNIS_API_KEY` | API key for programmatic access (`X-API-Key` header) |
+| `IGNIS_AUTH_TIMEOUT_MS` | Session timeout in ms (default: `86400000` = 24h) |
+
+When `IGNIS_AUTH_USER` and `IGNIS_AUTH_PASS` are set:
+- Browser requests without a session cookie are redirected to a login page at `/login`
+- API requests return `401 Unauthorized`
+- After successful login, a session cookie is set
+- Basic Auth credentials are also accepted on any request (and auto-create a session)
+
+When `IGNIS_API_KEY` is set:
+- Pass `X-API-Key` header with the key value
+- No session cookie — stateless, ideal for scripts and Obsidian Headless sync
+
+Example `docker-compose.yml`:
+```yaml
+services:
+  ignis:
+    image: nobbe/ignis:latest
+    ports:
+      - "8080:8080"
+    environment:
+      - IGNIS_AUTH_USER=admin
+      - IGNIS_AUTH_PASS=your-password
+      - IGNIS_API_KEY=sk-xxxxxxxxxxxxxxxx
+    volumes:
+      - ./vaults:/vaults
+```
+
+> [!TIP]
+> If you use `IGNIS_AUTH_PASS` with a plain-text password, it will be hashed on first startup using PBKDF2-SHA512. After the first start, you can replace the plain text with the hash value for better security.
+
+### API Endpoints
+
+When auth is enabled, the following endpoints are available:
+
+- `GET /api/auth/status` — Check if authenticated
+- `POST /api/auth/login` — `{ "username": "...", "password": "..." }`
+- `POST /api/auth/logout` — Clear session
+
+### External Auth (alternative)
+
+If you prefer to handle authentication externally:
 
 - A reverse proxy with Basic Auth (nginx, Caddy, Traefik)
 - An SSO proxy like Authelia, Authentik, or OAuth2 Proxy
@@ -80,6 +129,10 @@ To build from source instead of pulling the image, clone the repo and run `docke
 | `PGID` | Group ID for file ownership | `1000` |
 | `WRITE_COALESCE_MS` | Debounce window (ms) for rapid writes. On slow filesystems (rclone, NFS, SMB), set an appropriate duration. | `0` |
 | `WS_ORIGINS` | Comma-separated allowlist of `Origin` headers accepted on the WebSocket endpoint. When unset, any origin is accepted. | unset |
+| `IGNIS_AUTH_USER` | Username for built-in Basic Auth. | unset |
+| `IGNIS_AUTH_PASS` | Password for built-in Basic Auth (plain text — hashed on first start). | unset |
+| `IGNIS_API_KEY` | API key for programmatic access via `X-API-Key` header. | unset |
+| `IGNIS_AUTH_TIMEOUT_MS` | Session timeout in milliseconds for built-in auth. | `86400000` (24h) |
 
 Demo mode adds its own set of env vars (per-session vaults, auto-cleanup, proxy allowlist, login blocking). See [`examples/demo/`](examples/demo/) if you want to run a public demo deployment.
 

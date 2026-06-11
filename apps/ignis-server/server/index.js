@@ -80,12 +80,18 @@ const proxyRoutes = require("./routes/proxy");
 const versionRoutes = require("./routes/version");
 const settingsRoutes = require("./routes/settings");
 const bootstrapRoutes = require("./routes/bootstrap");
+const authRoutes = require("./routes/auth");
+const { setupAuthMiddleware } = require("./auth");
 
 app.use("/assets", express.static(path.join(__dirname, "assets")));
 
 // Demo mode: layers session/quota/allowlist middleware on top of the existing routes.
 // Must run BEFORE the routes are mounted. No-op when DEMO_MODE != true.
 setupDemo(app);
+
+// Built-in auth: mounts /api/auth endpoints + auth middleware. No-op when auth is not configured.
+app.use("/api/auth", authRoutes);
+setupAuthMiddleware(app);
 
 app.use("/api/fs", fsRoutes);
 app.use("/api/vault", vaultRoutes);

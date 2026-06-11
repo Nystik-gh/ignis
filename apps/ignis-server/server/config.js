@@ -85,6 +85,15 @@ module.exports = {
   demoTemplateDir:
     process.env.DEMO_TEMPLATE_DIR || path.join(__dirname, "demo-template"),
 
+  // Built-in authentication.
+  authUser: process.env.IGNIS_AUTH_USER || null,
+  authPass: process.env.IGNIS_AUTH_PASS || null,
+  apiKey: process.env.IGNIS_API_KEY || null,
+  get authEnabled() {
+    return !!(this.authUser || this.apiKey);
+  },
+  authTimeoutMs: parseInt(process.env.IGNIS_AUTH_TIMEOUT_MS) || 24 * 60 * 60 * 1000,
+
   obsidianAssetsPath:
     process.env.OBSIDIAN_ASSETS_PATH ||
     path.join(REPO_ROOT, "investigation", "obsidian_1.12.7_unpacked"),

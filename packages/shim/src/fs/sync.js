@@ -160,16 +160,7 @@ export function createFsSync(metadataCache, contentCache, transport) {
       contentCache.delete(resolved);
       metadataCache.delete(resolved);
 
-      // Fire-and-forget. suppress ENOENT (file already gone)
-      transport.unlink(resolved).catch((e) => {
-        if (e.code !== "ENOENT") {
-          console.error(
-            "[shim:fs] unlinkSync background delete failed:",
-            resolved,
-            e,
-          );
-        }
-      });
+      transport.unlinkSync(resolved);
     },
 
     readdirSync(path) {
@@ -191,13 +182,7 @@ export function createFsSync(metadataCache, contentCache, transport) {
       markLocalOp(resolved);
       metadataCache.set(resolved, { type: "directory" });
 
-      transport.mkdir(resolved, recursive).catch((e) => {
-        console.error(
-          "[shim:fs] mkdirSync background create failed:",
-          resolved,
-          e,
-        );
-      });
+      transport.mkdirSync(resolved, recursive);
     },
 
     rmdirSync(path) {
@@ -206,13 +191,7 @@ export function createFsSync(metadataCache, contentCache, transport) {
       markLocalOp(resolved);
       metadataCache.delete(resolved);
 
-      transport.rmdir(resolved).catch((e) => {
-        console.error(
-          "[shim:fs] rmdirSync background remove failed:",
-          resolved,
-          e,
-        );
-      });
+      transport.rmdirSync(resolved);
     },
 
     rmSync(path, options) {
@@ -225,13 +204,7 @@ export function createFsSync(metadataCache, contentCache, transport) {
       metadataCache.delete(resolved);
       contentCache.delete(resolved);
 
-      transport.rm(resolved, recursive).catch((e) => {
-        console.error(
-          "[shim:fs] rmSync background remove failed:",
-          resolved,
-          e,
-        );
-      });
+      transport.rmSync(resolved, recursive);
     },
 
     renameSync(oldPath, newPath) {
@@ -249,13 +222,7 @@ export function createFsSync(metadataCache, contentCache, transport) {
 
       metadataCache.rename(resolvedOld, resolvedNew);
 
-      transport.rename(resolvedOld, resolvedNew).catch((e) => {
-        console.error(
-          "[shim:fs] renameSync background rename failed:",
-          resolvedOld,
-          e,
-        );
-      });
+      transport.renameSync(resolvedOld, resolvedNew);
     },
 
     copyFileSync(src, dest) {
@@ -277,17 +244,7 @@ export function createFsSync(metadataCache, contentCache, transport) {
         metadataCache.set(resolvedDest, { ...srcMeta });
       }
 
-      transport
-        .copyFile(src, resolvedDest)
-        .then(() => transport.stat(resolvedDest))
-        .then((meta) => metadataCache.set(resolvedDest, meta))
-        .catch((e) => {
-          console.error(
-            "[shim:fs] copyFileSync background copy failed:",
-            resolvedDest,
-            e,
-          );
-        });
+      transport.copyFileSync(resolvedSrc, resolvedDest);
     },
 
     appendFileSync(path, data) {
@@ -296,17 +253,7 @@ export function createFsSync(metadataCache, contentCache, transport) {
       markLocalOp(resolved);
       contentCache.invalidate(resolved);
 
-      transport
-        .appendFile(resolved, data)
-        .then(() => transport.stat(resolved))
-        .then((meta) => metadataCache.set(resolved, meta))
-        .catch((e) => {
-          console.error(
-            "[shim:fs] appendFileSync background append failed:",
-            resolved,
-            e,
-          );
-        });
+      transport.appendFileSync(resolved, data);
     },
 
     utimesSync(path, atime, mtime) {
@@ -318,13 +265,7 @@ export function createFsSync(metadataCache, contentCache, transport) {
         metadataCache.set(resolved, meta);
       }
 
-      transport.utimes(resolved, atime, mtime).catch((e) => {
-        console.error(
-          "[shim:fs] utimesSync background utimes failed:",
-          resolved,
-          e,
-        );
-      });
+      transport.utimesSync(resolved, atime, mtime);
     },
 
     chmodSync() {

@@ -11,6 +11,7 @@ import { realpath, realpathSync } from "./realpath.js";
 import { constants } from "./constants.js";
 import { registerReadTransform, removeReadTransform, resolvePath } from "./transforms.js";
 import { wsClient } from "../ws-client.js";
+import { createReadStream, createWriteStream } from "./stream.js";
 
 const metadataCache = new MetadataCache();
 const contentCache = new ContentCache();
@@ -58,6 +59,14 @@ export const fsShim = {
 
   watch: fsWatch.watch,
   constants,
+
+  createReadStream(path, options) {
+    return createReadStream(path, options, fsSync);
+  },
+
+  createWriteStream(path, options) {
+    return createWriteStream(path, options, fsSync);
+  },
 
   invalidate(path) {
     contentCache.invalidate(resolvePath(path));

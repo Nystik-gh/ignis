@@ -221,4 +221,52 @@ export const transport = {
       base64: !isText,
     });
   },
+
+  unlinkSync(path) {
+    requestSync("DELETE", "/unlink", { path: normPath(path) });
+  },
+
+  rmdirSync(path) {
+    requestSync("DELETE", "/rmdir", { path: normPath(path) });
+  },
+
+  rmSync(path, recursive) {
+    requestSync("DELETE", "/rm", {
+      path: normPath(path),
+      recursive: recursive ? "true" : "false",
+    });
+  },
+
+  mkdirSync(path, recursive) {
+    requestSync("POST", "/mkdir", { path: normPath(path), recursive });
+  },
+
+  renameSync(oldPath, newPath) {
+    requestSync("POST", "/rename", {
+      oldPath: normPath(oldPath),
+      newPath: normPath(newPath),
+    });
+  },
+
+  copyFileSync(src, dest) {
+    requestSync("POST", "/copyFile", {
+      src: normPath(src),
+      dest: normPath(dest),
+    });
+  },
+
+  appendFileSync(path, content) {
+    requestSync("POST", "/appendFile", {
+      path: normPath(path),
+      content,
+    });
+  },
+
+  utimesSync(path, atime, mtime) {
+    requestSync("POST", "/utimes", {
+      path: normPath(path),
+      atime,
+      mtime,
+    });
+  },
 };

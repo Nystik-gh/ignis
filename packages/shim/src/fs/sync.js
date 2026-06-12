@@ -147,14 +147,10 @@ export function createFsSync(metadataCache, contentCache, transport) {
         ctime: metadataCache.get(resolved)?.ctime || Date.now(),
       });
 
-      // Fire-and-forget async send to server
-      transport.writeFile(resolved, transformed, encoding).catch((e) => {
-        console.error(
-          "[shim:fs] writeFileSync background save failed:",
-          resolved,
-          e,
-        );
-      });
+      // Synchronous XHR so the write is durable before we return.
+      // Without this, a page refresh before the async fetch completes
+      // discards the in-memory cache and aborts the request, losing data.
+      transport.writeFileSync(resolved, transformed, encoding);
     },
 
     unlinkSync(path) {
@@ -190,20 +186,32 @@ export function createFsSync(metadataCache, contentCache, transport) {
       const recursive =
         typeof options === "object" ? !!options.recursive : !!options;
 
-      markLocalOp(path);
-      metadataCache.set(path, { type: "directory" });
+      const resolved = resolvePath(path);
 
-      transport.mkdir(path, recursive).catch((e) => {
-        console.error("[shim:fs] mkdirSync background create failed:", path, e);
+      markLocalOp(resolved);
+      metadataCache.set(resolved, { type: "directory" });
+
+      transport.mkdir(resolved, recursive).catch((e) => {
+        console.error(
+          "[shim:fs] mkdirSync background create failed:",
+          resolved,
+          e,
+        );
       });
     },
 
     rmdirSync(path) {
-      markLocalOp(path);
-      metadataCache.delete(path);
+      const resolved = resolvePath(path);
 
-      transport.rmdir(path).catch((e) => {
-        console.error("[shim:fs] rmdirSync background remove failed:", path, e);
+      markLocalOp(resolved);
+      metadataCache.delete(resolved);
+
+      transport.rmdir(resolved).catch((e) => {
+        console.error(
+          "[shim:fs] rmdirSync background remove failed:",
+          resolved,
+          e,
+        );
       });
     },
 

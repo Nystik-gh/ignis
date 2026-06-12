@@ -85,15 +85,6 @@ export function createFsPromises(metadataCache, contentCache, transport) {
           throw e;
         }
 
-        if (!meta && resolved && resolved === path) {
-          // Throw ENOENT only when not redirected; redirected paths fall through to the transport's fallback.
-          const e = new Error(
-            `ENOENT: no such file or directory, open '${path}'`,
-          );
-          e.code = "ENOENT";
-          throw e;
-        }
-
         result = contentCache.get(resolved);
       }
 
@@ -206,16 +197,20 @@ export function createFsPromises(metadataCache, contentCache, transport) {
       const recursive =
         typeof options === "object" ? !!options.recursive : !!options;
 
-      markLocalOp(path);
-      metadataCache.set(path, { type: "directory" });
+      const resolved = resolvePath(path);
 
-      await transport.mkdir(path, recursive);
+      markLocalOp(resolved);
+      metadataCache.set(resolved, { type: "directory" });
+
+      await transport.mkdir(resolved, recursive);
     },
 
     async rmdir(path) {
-      markLocalOp(path);
-      metadataCache.delete(path);
-      await transport.rmdir(path);
+      const resolved = resolvePath(path);
+
+      markLocalOp(resolved);
+      metadataCache.delete(resolved);
+      await transport.rmdir(resolved);
     },
 
     async rm(path, options) {

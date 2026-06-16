@@ -31,9 +31,19 @@ async function writeToDisk(absPath, data, encoding) {
   );
 
   lastWriteTime.set(absPath, Date.now());
-  const stat = await fs.promises.stat(absPath);
 
-  return { mtime: stat.mtimeMs, size: stat.size };
+  // A concurrent delete can remove the file between the write and the stat (a rapid write-then-delete on the same path).
+  // The write itself succeeds, so report synthetic metadata rather than failing the request on the now-missing file.
+  try {
+    const stat = await fs.promises.stat(absPath);
+    return { mtime: stat.mtimeMs, size: stat.size };
+  } catch (e) {
+    if (e.code === "ENOENT") {
+      return { mtime: Date.now(), size: estimateSize(data, encoding) };
+    }
+
+    throw e;
+  }
 }
 
 function flushEntry(absPath) {

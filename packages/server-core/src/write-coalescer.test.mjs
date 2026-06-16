@@ -99,6 +99,18 @@ describe("writeCoalesced", () => {
 
     expect(elapsed).toBeLessThan(20);
   });
+
+  it("returns synthetic metadata when the file is deleted before the post-write stat", async () => {
+    const filePath = path.join(tmpDir, "race.txt");
+    vi.spyOn(fs.promises, "stat").mockRejectedValueOnce(
+      Object.assign(new Error("ENOENT"), { code: "ENOENT" }),
+    );
+
+    const result = await coalescer.writeCoalesced(filePath, "hello", "utf-8");
+
+    expect(result.size).toBe(5);
+    expect(result.mtime).toBeGreaterThan(0);
+  });
 });
 
 describe("getPending", () => {

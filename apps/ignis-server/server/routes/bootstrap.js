@@ -15,7 +15,8 @@ const {
 } = require("../plugin-system/manager");
 const { getVersion } = require("../version");
 const settings = require("../settings");
-const { sanitizeError } = require("@ignis/server-core");
+const { sanitizeError, writeCoalescer } = require("@ignis/server-core");
+const { getPending } = writeCoalescer;
 
 const router = express.Router();
 
@@ -61,14 +62,30 @@ async function walkTree(rootPath) {
         await walk(full, rel);
       } else {
         try {
-          const s = await fsp.stat(full);
+          const buffered = getPending(full);
 
-          tree[rel] = {
-            type: "file",
-            size: s.size,
-            mtime: s.mtimeMs,
-            ctime: s.ctimeMs,
-          };
+          if (buffered) {
+            const s = await fsp.stat(full).catch(() => null);
+            const size = Buffer.isBuffer(buffered.data)
+              ? buffered.data.length
+              : Buffer.byteLength(buffered.data, buffered.encoding || "utf-8");
+
+            tree[rel] = {
+              type: "file",
+              size,
+              mtime: Date.now(),
+              ctime: s ? s.ctimeMs : Date.now(),
+            };
+          } else {
+            const s = await fsp.stat(full);
+
+            tree[rel] = {
+              type: "file",
+              size: s.size,
+              mtime: s.mtimeMs,
+              ctime: s.ctimeMs,
+            };
+          }
         } catch {
           tree[rel] = { type: "file" };
         }
@@ -265,3 +282,4 @@ module.exports = router;
 module.exports.invalidateVault = invalidateVault;
 module.exports.invalidateAll = invalidateAll;
 module.exports.warmUp = warmUp;
+module.exports.walkTree = walkTree;

@@ -1,6 +1,7 @@
 // Coalesces boot-window writes per path so they flush in a few round-trips instead of one per save.
 
 import { markLocalOp } from "./echo-guard.js";
+import { trackWrite } from "./write-durability.js";
 
 const QUIET_MS = 100; // flush a path this long after its last write
 const MAX_WAIT_MS = 2000; // but never hold a buffered write longer than this
@@ -45,18 +46,28 @@ export function initWriteCoalescer(t) {
 
 function performWrite(path, data, encoding, onResult) {
   markLocalOp(path);
+  const track = trackWrite(path);
 
-  return transport.writeFile(path, data, encoding).then((result) => {
-    if (result && result.mtime && onResult) {
-      onResult(result);
-    }
+  return transport.writeFile(path, data, encoding).then(
+    (result) => {
+      track.success();
 
-    return result;
-  });
+      if (result && result.mtime && onResult) {
+        onResult(result);
+      }
+
+      return result;
+    },
+    (err) => {
+      // put the failed write in the durability queue, which retries it in the background.
+      track.failure(data, encoding, onResult);
+      throw err;
+    },
+  );
 }
 
 // Run a write only after any in-flight write to the same path completes.
-function enqueue(path, run) {
+export function enqueue(path, run) {
   const prev = tails.get(path) || Promise.resolve();
   const result = prev.then(run, run);
   const tail = result.catch(() => {});
@@ -84,8 +95,8 @@ function doFlush(path) {
 
   enqueue(path, () =>
     performWrite(path, entry.data, entry.encoding, entry.onResult),
-  ).catch((e) => {
-    console.error("[shim:fs] coalesced writeFile flush failed:", path, e);
+  ).catch(() => {
+    // performWrite handed the failure to the durability queue; nothing more to do here.
   });
 }
 

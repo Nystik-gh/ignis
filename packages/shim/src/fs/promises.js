@@ -3,6 +3,7 @@ import {
   bufferWrite,
   cancelPending,
   COALESCE_MAX_BYTES,
+  enqueue,
   enqueueWrite,
   hasPending,
   initWriteCoalescer,
@@ -17,9 +18,17 @@ import {
 } from "./transforms.js";
 import { hasVirtualFile, getVirtualFile } from "./virtual-files.js";
 import { realpathSync } from "./realpath.js";
+import { initWriteDurability, onFailure } from "./write-durability.js";
 
 export function createFsPromises(metadataCache, contentCache, transport) {
   initWriteCoalescer(transport);
+  initWriteDurability(transport, enqueue);
+
+  // On give-up, drop the optimistic content so a re-read returns server truth.
+  // Metadata is left as-is: a reconciling stat would also fail (server unreachable) and deleting on that would lose a live file.
+  onFailure((failedPath) => {
+    contentCache.invalidate(failedPath);
+  });
 
   return {
     async stat(path) {
@@ -182,7 +191,12 @@ export function createFsPromises(metadataCache, contentCache, transport) {
         cancelPending(resolved);
       }
 
-      await enqueueWrite(resolved, transformed, encoding, applyResult);
+      try {
+        await enqueueWrite(resolved, transformed, encoding, applyResult);
+      } catch {
+        // The durability queue owns retrying a failed write, so resolve optimistically.
+        // A lost write surfaces through the status-bar signal and the give-up Notice.
+      }
     },
 
     async appendFile(path, data, encoding) {
@@ -351,7 +365,7 @@ export function createFsPromises(metadataCache, contentCache, transport) {
         },
 
         async close() {
-          // Nothing to clean up  -  data is in memory
+          // Nothing to clean up; data is in memory.
         },
       };
     },

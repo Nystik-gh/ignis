@@ -7,6 +7,7 @@ import {
   resolvePathInfo,
 } from "./transforms.js";
 import { hasVirtualFile, getVirtualFile } from "./virtual-files.js";
+import { trackWrite } from "./write-durability.js";
 
 export function createFsSync(metadataCache, contentCache, transport) {
   return {
@@ -173,14 +174,13 @@ export function createFsSync(metadataCache, contentCache, transport) {
         ctime: metadataCache.get(resolved)?.ctime || Date.now(),
       });
 
-      // Fire-and-forget async send to server
-      transport.writeFile(resolved, transformed, encoding).catch((e) => {
-        console.error(
-          "[shim:fs] writeFileSync background save failed:",
-          resolved,
-          e,
-        );
-      });
+      // Fire-and-forget async send, tracked silently: retries with backoff and gives up without surfacing.
+      const track = trackWrite(resolved, { silent: true });
+
+      transport.writeFile(resolved, transformed, encoding).then(
+        () => track.success(),
+        () => track.failure(transformed, encoding, null),
+      );
     },
 
     unlinkSync(path) {

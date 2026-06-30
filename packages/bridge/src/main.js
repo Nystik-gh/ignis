@@ -25,7 +25,7 @@ class IgnisBridgePlugin extends Plugin {
     await pluginRegistry.refresh();
     patchSettingsModal(this);
     startDemoGuards();
-    this._statusBarInterval = initStatusBar(this);
+    this._statusBarUnsub = initStatusBar(this);
 
     this.addRibbonIcon("upload", "Upload file", () => {
       showFilePicker(this.app);
@@ -55,8 +55,8 @@ class IgnisBridgePlugin extends Plugin {
       return;
     }
 
-    if (this._statusBarInterval) {
-      clearInterval(this._statusBarInterval);
+    if (this._statusBarUnsub) {
+      this._statusBarUnsub();
     }
 
     unpatchSettingsModal(this);

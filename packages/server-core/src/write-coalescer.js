@@ -5,6 +5,7 @@
 // Buffered writes respond to the HTTP client right away with synthetic mtime/size. Otherwise the browser's per-host connection cap blocks unrelated reads while writes sit in the buffer.
 
 const fs = require("fs");
+const path = require("path");
 
 const FLUSH_TIMEOUT_MS = 10000;
 
@@ -55,9 +56,16 @@ function flushEntry(absPath) {
 
   clearTimeout(entry.timer);
   pending.delete(absPath);
+  const { data, encoding } = entry;
 
-  writeToDisk(absPath, entry.data, entry.encoding).catch((err) => {
+  writeToDisk(absPath, data, encoding).catch((err) => {
     console.error(`[write-coalesce] Flush failed for ${absPath}:`, err);
+
+    // Re-buffer the failed write so a later flush retries it, unless a newer write already took the slot.
+    if (!pending.has(absPath)) {
+      pending.set(absPath, { data, encoding, timer: null });
+      scheduleFlush(absPath);
+    }
   });
 }
 
@@ -131,6 +139,75 @@ function getPending(absPath) {
   return null;
 }
 
+function cancelPending(absPath) {
+  const entry = pending.get(absPath);
+
+  if (!entry) {
+    return false;
+  }
+
+  clearTimeout(entry.timer);
+  pending.delete(absPath);
+  return true;
+}
+
+async function flushPending(absPath) {
+  const entry = pending.get(absPath);
+
+  if (!entry) {
+    return false;
+  }
+
+  clearTimeout(entry.timer);
+  pending.delete(absPath);
+  const { data, encoding } = entry;
+
+  try {
+    await writeToDisk(absPath, data, encoding);
+    return true;
+  } catch (e) {
+    // Re-buffer the failed write so a later flush retries it, unless a newer write already took the slot.
+    if (!pending.has(absPath)) {
+      pending.set(absPath, { data, encoding, timer: null });
+      scheduleFlush(absPath);
+    }
+
+    throw e;
+  }
+}
+
+function cancelPendingSubtree(absDir) {
+  const prefix = absDir.endsWith(path.sep) ? absDir : absDir + path.sep;
+  let dropped = 0;
+
+  for (const [absPath, entry] of pending) {
+    if (absPath === absDir || absPath.startsWith(prefix)) {
+      clearTimeout(entry.timer);
+      pending.delete(absPath);
+      dropped++;
+    }
+  }
+
+  return dropped;
+}
+
+async function flushPendingSubtree(absDir) {
+  const prefix = absDir.endsWith(path.sep) ? absDir : absDir + path.sep;
+  const targets = [];
+
+  for (const absPath of pending.keys()) {
+    if (absPath === absDir || absPath.startsWith(prefix)) {
+      targets.push(absPath);
+    }
+  }
+
+  for (const absPath of targets) {
+    await flushPending(absPath);
+  }
+
+  return targets.length;
+}
+
 /**
  * Flush all pending writes to disk. Called on graceful shutdown.
  */
@@ -175,4 +252,14 @@ function _reset() {
   lastWriteTime.clear();
 }
 
-module.exports = { writeCoalesced, getPending, flushAll, configure, _reset };
+module.exports = {
+  writeCoalesced,
+  getPending,
+  cancelPending,
+  flushPending,
+  cancelPendingSubtree,
+  flushPendingSubtree,
+  flushAll,
+  configure,
+  _reset,
+};

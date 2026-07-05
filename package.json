@@ -1,6 +1,6 @@
 {
   "name": "ignis-monorepo",
-  "version": "0.8.7",
+  "version": "0.8.8",
   "private": true,
   "description": "Monorepo for Ignis: a browser-based Obsidian client. Self-hosted server in apps/ignis-server; shim, UI, and shared libraries in packages/.",
   "workspaces": [

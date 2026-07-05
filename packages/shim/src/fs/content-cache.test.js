@@ -90,3 +90,18 @@ describe("ContentCache path normalization", () => {
     expect(cache.get("foo/bar/baz.md")).toBe("content");
   });
 });
+
+// -- Configured capacity -----------------------------------------------
+
+describe("ContentCache maxSize", () => {
+  it("reports the size passed to the constructor", () => {
+    const cache = new ContentCache(7 * 1024);
+    expect(cache.maxSize).toBe(7 * 1024);
+  });
+
+  it("reflects a later setMaxSize", () => {
+    const cache = new ContentCache(1024);
+    cache.setMaxSize(64 * 1024);
+    expect(cache.maxSize).toBe(64 * 1024);
+  });
+});

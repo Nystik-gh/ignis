@@ -12,12 +12,29 @@ import {
 } from "./virtual-plugin-loader.js";
 import { wsClient } from "./ws-client.js";
 import { installIgnisApi } from "./ignis-api.js";
+import {
+  getState,
+  onStateChange,
+  onFailure,
+  onFailureChange,
+  listFailed,
+  retryAll,
+  getDetail,
+} from "./fs/write-durability.js";
 
 // __IGNIS_VERSION__ (semver) and __IGNIS_BUILD__ are replaced at build time.
 window.__ignis = { version: __IGNIS_VERSION__, build: __IGNIS_BUILD__ };
 window.__ignis_registerUI = registerUI;
 
-installIgnisApi(wsClient);
+installIgnisApi(wsClient, {
+  getState,
+  onStateChange,
+  onFailure,
+  onFailureChange,
+  listFailed,
+  retryAll,
+  getDetail,
+});
 
 const BRIDGE_MANIFEST = {
   id: "ignis-bridge",
@@ -42,7 +59,16 @@ if (window.innerWidth < 600) {
   localStorage.removeItem("EmulateMobile");
 }
 
+// Fallback that ends the boot window if layout-ready never fires.
+setTimeout(() => {
+  window.__ignisBooting = false;
+}, 20000);
+
 initialize(); // vault config, metadata cache, plugin prompt
+
+function onLayoutReady() {
+  window.__ignisBooting = false;
+}
 
 // Connect the shared WebSocket after everything is initialized; watcher and live-toggle subscribers attach to the same client.
 if (window.__currentVaultId) {
@@ -52,6 +78,11 @@ if (window.__currentVaultId) {
 
 extractObsidianModule()
   .then(async () => {
+    // window.app exists once Obsidian's module is extracted.
+    if (window.app && window.app.workspace && window.app.workspace.onLayoutReady) {
+      window.app.workspace.onLayoutReady(onLayoutReady);
+    }
+
     // Dynamic import so the bridge's top-level obsidian import resolves after installRequire + extractObsidianModule.
     const mod = await import("@ignis/bridge");
     const IgnisBridgePlugin = mod.default || mod;

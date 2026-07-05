@@ -9,10 +9,19 @@
     Run Obsidian in the browser. No remote desktop required.
   </p>
 
+  <h3 align="center">
+    <a href="apps/ignis-server/README.md">Setup instructions</a>
+  </h3>
+
   <p align="center">
     <a href="https://ignis-demo.thiefling.com">Try the live demo</a>
   </p>
 </section>
+
+## Getting started
+
+> [!TIP]
+> **[Setup instructions](apps/ignis-server/README.md)** for the self-hosted Docker server.
 
 ## What is this
 
@@ -52,6 +61,7 @@ Ignis currently ships as a self-hosted server but I have plans for a desktop plu
 - Streaming `zlib` classes (`createGzip`, `createDeflate`, etc.) aren't implemented. The synchronous and callback variants work via `pako`.
 - The synchronous file picker (`dialog.showOpenDialogSync`), used by plugins like Importer, has a staged-files workaround: the shim asks you to pick once and serves the result on retry. Usable but rough.
 - `safeStorage` is passthrough by design: `isEncryptionAvailable()` returns `false` and `encrypt`/`decrypt` are no-ops. Anything plugins store via `safeStorage` ends up as plaintext on disk. A server-side encrypted option is planned but not yet implemented; until then, treat anything `safeStorage` produces the same as anything else in the vault.
+- Spellcheck language selection from Obsidian's settings doesn't work: a web page can't set the browser's spellchecker languages, so the "Spellcheck languages" setting is disabled and points you to your browser's own language settings instead.
 
 Compatibility for specific community plugins is tracked in [Issue #9](https://github.com/Nystik-gh/ignis/issues/9).
 

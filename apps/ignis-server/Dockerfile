@@ -19,7 +19,8 @@ COPY build.js ./
 COPY packages/ ./packages/
 COPY apps/ignis-server/ ./apps/ignis-server/
 
-RUN npm run build
+ARG IGNIS_BUILD
+RUN IGNIS_BUILD=${IGNIS_BUILD} npm run build
 
 # Production image. No Obsidian code included.
 # On first run, the entrypoint downloads Obsidian.

@@ -9,7 +9,14 @@ const {
   resolveVaultPath,
   sanitizeError,
 } = require("@ignis/server-core");
-const { writeCoalesced, getPending } = writeCoalescer;
+const {
+  writeCoalesced,
+  getPending,
+  cancelPending,
+  flushPending,
+  cancelPendingSubtree,
+  flushPendingSubtree,
+} = writeCoalescer;
 const bootstrapRoutes = require("./bootstrap");
 
 const router = express.Router();
@@ -97,9 +104,7 @@ router.get("/stat", async (req, res) => {
       ctime: stat.ctimeMs,
     });
   } catch (e) {
-    res
-      .status(e.code === "ENOENT" ? 404 : 500)
-      .json(sanitizeError(e));
+    res.status(e.code === "ENOENT" ? 404 : 500).json(sanitizeError(e));
   }
 });
 
@@ -132,9 +137,7 @@ router.get("/readdir", async (req, res) => {
       })),
     );
   } catch (e) {
-    res
-      .status(e.code === "ENOENT" ? 404 : 500)
-      .json(sanitizeError(e));
+    res.status(e.code === "ENOENT" ? 404 : 500).json(sanitizeError(e));
   }
 });
 
@@ -183,9 +186,7 @@ router.get("/readFile", async (req, res) => {
       res.type("application/octet-stream").send(data);
     }
   } catch (e) {
-    res
-      .status(e.code === "ENOENT" ? 404 : 500)
-      .json(sanitizeError(e));
+    res.status(e.code === "ENOENT" ? 404 : 500).json(sanitizeError(e));
   }
 });
 
@@ -227,6 +228,7 @@ router.post("/appendFile", async (req, res) => {
   }
 
   try {
+    await flushPending(resolved);
     await fs.promises.appendFile(resolved, req.body.content, "utf-8");
 
     invalidateBootstrap(req);
@@ -248,6 +250,7 @@ router.post("/mkdir", async (req, res) => {
     await fs.promises.mkdir(resolved, {
       recursive: !!req.body.recursive,
     });
+    cancelPending(resolved);
 
     invalidateBootstrap(req);
     res.json({ ok: true });
@@ -276,7 +279,10 @@ router.post("/rename", async (req, res) => {
   }
 
   try {
+    await flushPending(oldResolved);
     await fs.promises.rename(oldResolved, newResolved);
+    // Drop the destination's buffer so a stale write cannot land on the renamed file.
+    cancelPending(newResolved);
 
     invalidateBootstrap(req);
     res.json({ ok: true });
@@ -305,7 +311,9 @@ router.post("/copyFile", async (req, res) => {
   }
 
   try {
+    await flushPending(srcResolved);
     await fs.promises.copyFile(srcResolved, destResolved);
+    cancelPending(destResolved);
 
     invalidateBootstrap(req);
     res.json({ ok: true });
@@ -324,12 +332,14 @@ router.delete("/unlink", async (req, res) => {
 
   try {
     await fs.promises.unlink(resolved);
+    cancelPending(resolved);
 
     invalidateBootstrap(req);
     res.json({ ok: true });
   } catch (e) {
     if (e.code === "ENOENT") {
-      // File already gone  -  desired outcome achieved
+      // File already gone; drop any buffered write so the flush cannot re-create it.
+      cancelPending(resolved);
       res.json({ ok: true });
     } else {
       res.status(500).json(sanitizeError(e));
@@ -347,6 +357,7 @@ router.delete("/rmdir", async (req, res) => {
 
   try {
     await fs.promises.rmdir(resolved);
+    cancelPendingSubtree(resolved);
 
     invalidateBootstrap(req);
     res.json({ ok: true });
@@ -367,6 +378,11 @@ router.delete("/rm", async (req, res) => {
     await fs.promises.rm(resolved, {
       recursive: req.query.recursive === "true",
     });
+    cancelPending(resolved);
+
+    if (req.query.recursive === "true") {
+      cancelPendingSubtree(resolved);
+    }
 
     invalidateBootstrap(req);
     res.json({ ok: true });
@@ -387,9 +403,7 @@ router.get("/access", async (req, res) => {
 
     res.json({ ok: true });
   } catch (e) {
-    res
-      .status(e.code === "ENOENT" ? 404 : 500)
-      .json(sanitizeError(e));
+    res.status(e.code === "ENOENT" ? 404 : 500).json(sanitizeError(e));
   }
 });
 
@@ -505,14 +519,30 @@ router.get("/tree", async (req, res) => {
 
           await walk(full, rel);
         } else {
-          const stat = await fs.promises.stat(full);
+          const buffered = getPending(full);
 
-          tree[rel] = {
-            type: "file",
-            size: stat.size,
-            mtime: stat.mtimeMs,
-            ctime: stat.ctimeMs,
-          };
+          if (buffered) {
+            const stat = await fs.promises.stat(full).catch(() => null);
+            const size = Buffer.isBuffer(buffered.data)
+              ? buffered.data.length
+              : Buffer.byteLength(buffered.data, buffered.encoding || "utf-8");
+
+            tree[rel] = {
+              type: "file",
+              size,
+              mtime: Date.now(),
+              ctime: stat ? stat.ctimeMs : Date.now(),
+            };
+          } else {
+            const stat = await fs.promises.stat(full);
+
+            tree[rel] = {
+              type: "file",
+              size: stat.size,
+              mtime: stat.mtimeMs,
+              ctime: stat.ctimeMs,
+            };
+          }
         }
       }
     }
@@ -534,6 +564,22 @@ router.get("/download", async (req, res) => {
   }
 
   try {
+    const filename = path.basename(resolved);
+    const buffered = getPending(resolved);
+
+    if (buffered) {
+      const body = Buffer.isBuffer(buffered.data)
+        ? buffered.data
+        : Buffer.from(buffered.data, buffered.encoding || "utf-8");
+
+      res.setHeader(
+        "Content-Disposition",
+        encodeContentDispositionFilename(filename),
+      );
+      res.setHeader("Content-Type", "application/octet-stream");
+      return res.send(body);
+    }
+
     const stat = await fs.promises.stat(resolved);
 
     if (stat.isDirectory()) {
@@ -542,16 +588,13 @@ router.get("/download", async (req, res) => {
         .json({ error: "Use /download-zip for directories" });
     }
 
-    const filename = path.basename(resolved);
     res.setHeader(
       "Content-Disposition",
       encodeContentDispositionFilename(filename),
     );
     res.sendFile(resolved);
   } catch (e) {
-    res
-      .status(e.code === "ENOENT" ? 404 : 500)
-      .json(sanitizeError(e));
+    res.status(e.code === "ENOENT" ? 404 : 500).json(sanitizeError(e));
   }
 });
 
@@ -569,6 +612,9 @@ router.get("/download-zip", async (req, res) => {
     if (!stat.isDirectory()) {
       return res.status(400).json({ error: "Not a directory" });
     }
+
+    // Persist buffered writes under the directory so archiver reads current bytes from disk.
+    await flushPendingSubtree(resolved);
 
     const folderName = path.basename(resolved);
     res.setHeader("Content-Type", "application/zip");
@@ -590,9 +636,7 @@ router.get("/download-zip", async (req, res) => {
     );
     archive.finalize();
   } catch (e) {
-    res
-      .status(e.code === "ENOENT" ? 404 : 500)
-      .json(sanitizeError(e));
+    res.status(e.code === "ENOENT" ? 404 : 500).json(sanitizeError(e));
   }
 });
 

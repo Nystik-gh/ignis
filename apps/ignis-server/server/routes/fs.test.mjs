@@ -1,5 +1,7 @@
 import path from "path";
-import { describe, it, expect } from "vitest";
+import fs from "node:fs";
+import os from "node:os";
+import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { createRequire } from "module";
 
 const require = createRequire(import.meta.url);
@@ -105,5 +107,99 @@ describe("resolveVaultPath", () => {
 
   it("rejects traversal to a sibling vault with a shared prefix", () => {
     expect(resolveVaultPath(root, "../testing/foo")).toBe(null);
+  });
+
+  it("does not false-reject a vault based at the filesystem root", () => {
+    const fsRoot = path.parse(process.cwd()).root;
+    expect(resolveVaultPath(fsRoot, "child/leaf.md")).toBe(
+      path.resolve(fsRoot, "child/leaf.md"),
+    );
+  });
+});
+
+// -- resolveVaultPath symlink guard (filesystem) ---------------------
+
+// Symlink creation needs privilege or Developer Mode on Windows; skip those cases where it fails.
+let canSymlink = false;
+try {
+  const probe = fs.mkdtempSync(path.join(os.tmpdir(), "ignis-symlink-probe-"));
+  fs.symlinkSync(probe, path.join(probe, "l"), "dir");
+  canSymlink = true;
+  fs.rmSync(probe, { recursive: true, force: true });
+} catch {
+  canSymlink = false;
+}
+
+describe("resolveVaultPath symlink guard", () => {
+  let vault;
+  let outside;
+
+  beforeAll(() => {
+    vault = fs.mkdtempSync(path.join(os.tmpdir(), "ignis-vault-"));
+    outside = fs.mkdtempSync(path.join(os.tmpdir(), "ignis-outside-"));
+    fs.mkdirSync(path.join(vault, "notes"));
+    fs.writeFileSync(path.join(vault, "notes", "a.md"), "a");
+    fs.writeFileSync(path.join(outside, "secret.txt"), "s");
+
+    if (canSymlink) {
+      fs.symlinkSync(
+        path.join(outside, "secret.txt"),
+        path.join(vault, "escape"),
+        "file",
+      );
+      fs.symlinkSync(outside, path.join(vault, "escapedir"), "dir");
+      fs.symlinkSync(path.join(vault, "notes"), path.join(vault, "notelink"), "dir");
+      fs.symlinkSync(
+        path.join(outside, "newfile.txt"),
+        path.join(vault, "dangleout"),
+        "file",
+      );
+    }
+  });
+
+  afterAll(() => {
+    for (const d of [vault, outside]) {
+      fs.rmSync(d, { recursive: true, force: true });
+    }
+  });
+
+  it("allows a normal path inside the vault", () => {
+    expect(resolveVaultPath(vault, "notes/a.md")).toBe(
+      path.join(vault, "notes", "a.md"),
+    );
+  });
+
+  it("allows creating a new file inside the vault", () => {
+    expect(resolveVaultPath(vault, "notes/new.md")).toBe(
+      path.join(vault, "notes", "new.md"),
+    );
+  });
+
+  it.skipIf(!canSymlink)(
+    "rejects a symlink pointing to a file outside the vault",
+    () => {
+      expect(resolveVaultPath(vault, "escape")).toBe(null);
+    },
+  );
+
+  it.skipIf(!canSymlink)(
+    "rejects a directory symlink pointing outside the vault",
+    () => {
+      expect(resolveVaultPath(vault, "escapedir")).toBe(null);
+      expect(resolveVaultPath(vault, "escapedir/secret.txt")).toBe(null);
+    },
+  );
+
+  it.skipIf(!canSymlink)(
+    "rejects a dangling symlink pointing outside the vault",
+    () => {
+      expect(resolveVaultPath(vault, "dangleout")).toBe(null);
+    },
+  );
+
+  it.skipIf(!canSymlink)("allows an intra-vault symlink", () => {
+    expect(resolveVaultPath(vault, "notelink/a.md")).toBe(
+      path.join(vault, "notelink", "a.md"),
+    );
   });
 });

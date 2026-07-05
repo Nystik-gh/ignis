@@ -13,6 +13,7 @@ import { setInputCacheLimits } from "./fs/input-cache.js";
 import { setDirectFetchHosts } from "./util/url.js";
 import { autoTrustDemoVaults, maybeProvisionDemoVault } from "./demo.js";
 import { initNativeMenuGuard } from "./native-menu-guard.js";
+import { initSpellcheckGuard } from "./spellcheck-guard.js";
 
 let bootstrapVirtualPlugins = [];
 
@@ -236,6 +237,7 @@ function resolveWorkspaceAndAppearance() {
   resolveWorkspaceName();
   loadPresetIfRequested();
   initNativeMenuGuard();
+  initSpellcheckGuard();
 }
 
 export function initialize() {
@@ -266,6 +268,8 @@ export function initialize() {
       fsShim._contentCache,
       { onProgress: updateBootProgress },
     );
+
+    window.__ignisBooting = true;
 
     // Chain workspace/appearance resolution onto readiness so its config reads hit the warm priority slice instead of the network.
     window.__ignisBootReady = priority.then(resolveWorkspaceAndAppearance);

@@ -2,6 +2,27 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.8.8] - Karm (2026-07-05)
+
+### Added
+
+- Failed writes are retried in the background, with a status bar item for pending and failed writes.
+- A symlink under `VAULT_ROOT` pointing at a directory is discovered as a vault.
+
+### Changed
+
+- Boot prefetch skips plugin asset directories and reads batches in parallel.
+- A `chown` that fails on startup (read-only or NFS `root_squash` mounts) logs a warning instead of aborting.
+- The "Spellcheck languages" setting is disabled, with a link to the browser's own language settings.
+
+### Fixed
+
+- WebDAV uploads through the cross-origin proxy no longer corrupt; the proxy recomputes `Content-Length` for the request body.
+
+### Security
+
+- `resolveVaultPath` resolves symlinks and confines each access to the vault's real path.
+
 ## [0.8.7] - Karm (2026-06-19)
 
 ### Added

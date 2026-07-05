@@ -29,7 +29,26 @@ function discoverVaults() {
     const entries = fs.readdirSync(vaultRoot, { withFileTypes: true });
 
     for (const entry of entries) {
-      if (entry.isDirectory() && !entry.name.startsWith(".")) {
+      if (entry.name.startsWith(".")) {
+        continue;
+      }
+
+      let isDir = entry.isDirectory();
+
+      // A symlink Dirent reports the link's type, not the target's, so follow it to find symlinked vaults.
+      if (!isDir && entry.isSymbolicLink()) {
+        try {
+          isDir = fs.statSync(path.join(vaultRoot, entry.name)).isDirectory();
+        } catch (e) {
+          console.error(
+            "[config] Skipping unreadable vault entry:",
+            entry.name,
+            e.message,
+          );
+        }
+      }
+
+      if (isDir) {
         vaults[entry.name] = path.join(vaultRoot, entry.name);
       }
     }

@@ -83,6 +83,8 @@ Reads not satisfied by ContentCache go through the transport layer to `/api/fs/r
 
 Writes go through a server-side write coalescer (`packages/server-core/src/write-coalescer.js`) designed for slow filesystems like rclone FUSE mounts. The first write to a path goes to disk immediately. Subsequent writes within a configurable window (`WRITE_COALESCE_MS`, default `0` which disables coalescing) are buffered and flushed when the debounce timer fires; the timer resets on each write. Buffered writes return to the HTTP client immediately with synthetic metadata so connection-pool starvation on rapid-fire writes (e.g. `workspace.json` autosaves) doesn't stall unrelated reads. Reads for pending paths serve the buffered content so clients never see stale data. All pending writes are flushed on graceful shutdown.
 
+A write that fails at the transport is queued per path and retried in the background with backoff, so a transient network or server error does not lose the write. A dirty-state store tracks which paths have writes still pending and which have exhausted their retries and failed. This state is exposed to other client components.
+
 ### Transforms
 
 The shim has a transforms registry (`packages/shim/src/fs/transforms.js`) for hooks applied at the public shim surface, before caches or transport see the path. Three hook types:

@@ -83,6 +83,10 @@ To build from source instead of pulling the image, clone the repo and run `docke
 | `/app/data` | State persistence for various Ignis-specific functionality: plugin management, headless sync config, etc. |
 | `/app/obsidian-app` | Cached Obsidian assets. Persisting this avoids re-downloading on container recreate. |
 
+### Ownership on NFS shares
+
+For NFS shares with `root_squash`, set the share's owner to `PUID`/`PGID` or export the share with `no_root_squash`, so that `PUID`/`PGID` can read and write `/vaults`, `/app/data`, and `/app/obsidian-app`. The container chowns these paths to `PUID`/`PGID` at startup, which `root_squash` blocks. When the chown fails, the container still runs, and file access falls to the mount's own permissions, so Ignis works only where `PUID`/`PGID` can already read and write.
+
 ## Environment Variables
 
 | Variable | Description | Default |

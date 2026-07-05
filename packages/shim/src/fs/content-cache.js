@@ -78,6 +78,10 @@ export class ContentCache {
     return this._currentSize;
   }
 
+  get maxSize() {
+    return this._maxSize;
+  }
+
   _evictOne() {
     let oldest = null;
     let oldestTime = Infinity;

@@ -1,4 +1,5 @@
 const path = require("path");
+const fs = require("fs");
 
 /**
  * Encode a filename for use in Content-Disposition header.
@@ -49,6 +50,78 @@ function encodeContentDispositionFilename(filename) {
   return `attachment; filename="${asciiFallback}"; filename*=UTF-8''${encodedFilename}`;
 }
 
+// Real path of a target that may not exist yet: resolves symlinks (including dangling ones) and keeps a not-yet-existing tail so creates resolve.
+// Returns null on error, so the caller fails closed.
+function canonicalize(target, depth = 0) {
+  if (depth > 40) {
+    return null;
+  }
+
+  let current = target;
+  const tail = [];
+
+  // Walk up to the deepest existing entry.
+  while (true) {
+    try {
+      fs.lstatSync(current);
+      break;
+    } catch (e) {
+      if (e.code !== "ENOENT") {
+        return null;
+      }
+
+      const parent = path.dirname(current);
+
+      if (parent === current) {
+        return null;
+      }
+
+      tail.push(path.basename(current));
+      current = parent;
+    }
+  }
+
+  let real;
+
+  try {
+    real = fs.realpathSync(current);
+  } catch (e) {
+    if (e.code !== "ENOENT") {
+      return null;
+    }
+
+    // realpath failed on an existing entry: a dangling symlink. Follow its target so confinement sees where a write lands.
+    let linkTarget;
+
+    try {
+      linkTarget = fs.readlinkSync(current);
+    } catch {
+      return null;
+    }
+
+    real = canonicalize(
+      path.resolve(path.dirname(current), linkTarget),
+      depth + 1,
+    );
+
+    if (real === null) {
+      return null;
+    }
+  }
+
+  return tail.length ? path.join(real, ...tail.reverse()) : real;
+}
+
+// A filesystem root already ends in the separator, so reuse a base that already ends in one.
+function isWithin(child, base) {
+  if (child === base) {
+    return true;
+  }
+
+  const prefix = base.endsWith(path.sep) ? base : base + path.sep;
+  return child.startsWith(prefix);
+}
+
 // Resolve a client-provided path to an absolute path within a vault.
 // Strips leading slashes so paths from the client are always treated as relative to the vault root.
 // Rejects nullish input so missing-field bugs in callers don't silently target the vault root.
@@ -58,16 +131,27 @@ function resolveVaultPath(vaultRoot, relativePath) {
   }
 
   const cleaned = relativePath.replace(/^\/+/, "");
-  const resolved = path.resolve(vaultRoot, cleaned);
-
   const resolvedRoot = path.resolve(vaultRoot);
+  const resolved = path.resolve(resolvedRoot, cleaned);
 
-  if (
-    resolved !== resolvedRoot &&
-    !resolved.startsWith(resolvedRoot + path.sep)
-  ) {
+  // Lexical guard: reject an obvious ../ escape before touching the filesystem.
+  if (!isWithin(resolved, resolvedRoot)) {
     return null;
   }
+
+  // Symlink guard: an in-vault symlink passes the lexical check but the OS follows it.
+  // Confine the target's realpath within the vault's realpath base (per-vault, since the base may itself be a symlink).
+  const realBase = canonicalize(resolvedRoot);
+  const realTarget = canonicalize(resolved);
+
+  if (realBase === null || realTarget === null) {
+    return null;
+  }
+
+  if (!isWithin(realTarget, realBase)) {
+    return null;
+  }
+
   return resolved;
 }
 

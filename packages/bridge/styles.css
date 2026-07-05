@@ -135,6 +135,27 @@
   background-color: var(--color-red);
 }
 
+.ignis-statusbar-writes-pending {
+  animation: ignis-writes-pulse 1.6s ease-in-out infinite;
+}
+
+@keyframes ignis-writes-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+
+  50% {
+    opacity: 0.35;
+  }
+}
+
+.ignis-write-failure-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+}
+
 .ignis-plugins-description {
   padding: 0 16px;
   color: var(--text-muted);

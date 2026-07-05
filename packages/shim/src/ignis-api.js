@@ -1,7 +1,7 @@
 // Public Ignis API surface. The documented way for plugins (and Ignis-internal code) to reach shim services.
 // WIP, may expand to cover more shared functionality.
 
-export function installIgnisApi(wsClient) {
+export function installIgnisApi(wsClient, writes) {
   window.__ignis = window.__ignis || {};
 
   // Live getters so vault info reflects whatever init.js / vault-switch code has set.
@@ -23,6 +23,8 @@ export function installIgnisApi(wsClient) {
     isOpen: wsClient.isOpen,
     onStateChange: wsClient.onStateChange,
   };
+
+  window.__ignis.writes = writes;
 
   window.__ignis.plugins = window.__ignis.plugins || {};
 }

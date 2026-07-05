@@ -205,18 +205,44 @@ function sameOrigin(a, b) {
   return a.protocol === b.protocol && a.host === b.host;
 }
 
+// Let the proxy handle the Content-Length and Transfer-Encoding headers itself.
+function stripRequestFramingHeaders(headers) {
+  const out = {};
+
+  for (const [key, val] of Object.entries(headers)) {
+    const lower = key.toLowerCase();
+
+    if (lower === "content-length" || lower === "transfer-encoding") {
+      continue;
+    }
+
+    out[key] = val;
+  }
+
+  return out;
+}
+
 function requestOnce(targetUrl, method, headers, body) {
   return new Promise((resolve, reject) => {
     const mod = targetUrl.protocol === "https:" ? https : http;
+    const outHeaders = stripRequestFramingHeaders(headers);
+    const hasBody = body != null && method !== "GET" && method !== "HEAD";
+
+    if (hasBody) {
+      // Set Content-Length from the exact bytes written.
+      // Avoids rejection from upstreams that do not accept chunked uploads.
+      outHeaders["Content-Length"] = Buffer.byteLength(body);
+    }
+
     const req = mod.request(
       targetUrl,
-      { method, headers, lookup: safeLookup },
+      { method, headers: outHeaders, lookup: safeLookup },
       resolve,
     );
 
     req.on("error", reject);
 
-    if (body && method !== "GET" && method !== "HEAD") {
+    if (hasBody) {
       req.write(body);
     }
 
@@ -428,5 +454,7 @@ router.post("/", async (req, res) => {
 module.exports = router;
 module.exports.isPrivateIp = isPrivateIp;
 module.exports.proxyRequest = proxyRequest;
+module.exports.requestOnce = requestOnce;
+module.exports.stripRequestFramingHeaders = stripRequestFramingHeaders;
 module.exports.buildAllowList = buildAllowList;
 module.exports.allowsAddress = allowsAddress;

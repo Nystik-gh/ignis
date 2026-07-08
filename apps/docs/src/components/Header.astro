@@ -1,0 +1,80 @@
+---
+import { readFileSync, existsSync } from "node:fs";
+import path from "node:path";
+import Search from "@astrojs/starlight/components/Search.astro";
+import ThemeSelect from "@astrojs/starlight/components/ThemeSelect.astro";
+import MobileMenuToggle from "@astrojs/starlight/components/MobileMenuToggle.astro";
+import logo from "../assets/ignis.png";
+
+// Grab versions from the repo root package.json and the ignis-server Dockerfile.
+function findRepoRoot(start: string) {
+  let dir = start;
+
+  for (let i = 0; i < 8; i++) {
+    const pkgPath = path.join(dir, "package.json");
+
+    if (existsSync(pkgPath)) {
+      try {
+        const pkg = JSON.parse(readFileSync(pkgPath, "utf-8"));
+
+        if (pkg.workspaces) {
+          return { dir, pkg };
+        }
+      } catch {
+        // Malformed or unrelated package.json; keep walking up.
+      }
+    }
+
+    const parent = path.dirname(dir);
+
+    if (parent === dir) {
+      break;
+    }
+
+    dir = parent;
+  }
+
+  return null;
+}
+
+const root = findRepoRoot(process.cwd());
+const version = root ? "v" + root.pkg.version : "";
+
+let obsidian = null;
+
+if (root) {
+  try {
+    const dockerfile = readFileSync(path.join(root.dir, "apps/ignis-server/Dockerfile"), "utf-8");
+    const match = dockerfile.match(/obsidian-version="([\d.]+)"/);
+    obsidian = match ? match[1] : null;
+  } catch {
+    obsidian = null;
+  }
+}
+
+const home = import.meta.env.BASE_URL;
+---
+
+<div class="ignis-header">
+  <div class="ignis-brandblock">
+    <a href={home} class="ignis-brand">
+      <img src={logo.src} width="28" height="28" alt="" />
+      <span>Ignis</span>
+    </a>
+    {version && <span class="ignis-pill">{version}</span>}
+  </div>
+
+  <dl class="ignis-meta">
+    <div><dt>image</dt><dd>nobbe/ignis</dd></div>
+    <div><dt>arch</dt><dd>amd64 &middot; arm64</dd></div>
+    {obsidian && (
+      <div><dt>obsidian</dt><dd>{obsidian}</dd></div>
+    )}
+  </dl>
+
+  <div class="ignis-actions">
+    <Search />
+    <ThemeSelect />
+    <MobileMenuToggle />
+  </div>
+</div>

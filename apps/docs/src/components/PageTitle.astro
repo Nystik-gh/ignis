@@ -1,0 +1,40 @@
+---
+import Default from "@astrojs/starlight/components/PageTitle.astro";
+
+// Starlight has no breadcrumb. Derive one from the sidebar
+const route = Astro.locals.starlightRoute;
+const title = route.entry.data.title;
+const description = route.entry.data.description;
+
+function containsCurrent(items: any) {
+  return items.some((item: any) => {
+    if (item.type === "link") {
+      return item.isCurrent;
+    }
+
+    return item.type === "group" && containsCurrent(item.entries);
+  });
+}
+
+function currentGroup(items: any[]) {
+  for (const item of items) {
+    if (item.type === "group" && containsCurrent(item.entries)) {
+      return item.label;
+    }
+  }
+
+  return null;
+}
+
+const group: string = currentGroup(route.sidebar);
+---
+
+{group && (
+  <nav class="ignis-breadcrumb" aria-label="Breadcrumb">
+    <span>{group}</span>
+    <span class="sep">/</span>
+    <span class="cur">{title}</span>
+  </nav>
+)}
+<Default {...Astro.props} />
+{description && <p class="ignis-lede">{description}</p>}

@@ -1,0 +1,25 @@
+---
+import Default from "@astrojs/starlight/components/Head.astro";
+import noto400 from "@fontsource/noto-sans/files/noto-sans-latin-400-normal.woff2";
+import noto500 from "@fontsource/noto-sans/files/noto-sans-latin-500-normal.woff2";
+import noto600 from "@fontsource/noto-sans/files/noto-sans-latin-600-normal.woff2";
+import noto700 from "@fontsource/noto-sans/files/noto-sans-latin-700-normal.woff2";
+
+// Avoid layout shifts by preloading the font.
+const face = (weight: number, url: string) =>
+  `@font-face{font-family:'Noto Sans';font-style:normal;font-weight:${weight};font-display:optional;src:url(${url}) format('woff2')}`;
+
+const fontFaces = [
+  face(400, noto400),
+  face(500, noto500),
+  face(600, noto600),
+  face(700, noto700),
+].join("");
+const preload = [noto400, noto500, noto600, noto700];
+---
+
+<Default {...Astro.props} />
+{preload.map((href) => (
+  <link rel="preload" href={href} as="font" type="font/woff2" crossorigin="anonymous" />
+))}
+<style is:inline set:html={fontFaces}></style>

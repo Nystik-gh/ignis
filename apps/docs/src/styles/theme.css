@@ -30,7 +30,7 @@ html {
 
   --sl-color-bg-nav: #191c26;
   --sl-color-bg-sidebar: #171a23;
-  --sl-color-bg-inline-code: #0f111a;
+  --sl-color-bg-inline-code: #21252f;
 
   --sl-color-hairline: #262a37;
   --sl-color-hairline-light: var(--sl-color-hairline);
@@ -64,7 +64,7 @@ html {
   --sl-color-bg: #f7f8fa;
   --sl-color-bg-nav: #ffffff;
   --sl-color-bg-sidebar: #eef0f4;
-  --sl-color-bg-inline-code: #f0f2f5;
+  --sl-color-bg-inline-code: #e9ecf1;
 
   --sl-color-hairline: #e4e7ec;
   --sl-color-hairline-light: var(--sl-color-hairline);
@@ -274,12 +274,7 @@ starlight-toc a[aria-current="true"] {
 }
 
 /* --- Section headings --- */
-.sl-markdown-content {
-  counter-reset: ignis-sec;
-}
-
 .sl-markdown-content .sl-heading-wrapper:has(> h2) {
-  counter-increment: ignis-sec;
   display: flex;
   align-items: center;
   margin: 2rem 0 0.85rem;
@@ -291,13 +286,13 @@ starlight-toc a[aria-current="true"] {
 }
 
 .sl-markdown-content .sl-heading-wrapper:has(> h2)::before {
-  content: counter(ignis-sec, decimal-leading-zero);
+  content: "";
   flex: none;
-  margin-inline-end: 0.6rem;
-  color: var(--ignis-amber-strong);
-  font-weight: 700;
-  font-size: 0.78rem;
-  letter-spacing: 0.06em;
+  width: 7px;
+  height: 7px;
+  margin-inline-end: 0.7rem;
+  border-radius: 50%;
+  background: var(--ignis-amber);
 }
 
 .sl-markdown-content .sl-heading-wrapper:has(> h2) > h2 {
@@ -313,6 +308,22 @@ starlight-toc a[aria-current="true"] {
   flex: 1;
   height: 1px;
   background: var(--ignis-border);
+}
+
+.sl-markdown-content .sl-heading-wrapper:has(> h3) {
+  margin: 1.75rem 0 0.5rem;
+}
+
+.sl-markdown-content .sl-heading-wrapper:has(> h3) > h3 {
+  margin: 0;
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: var(--sl-color-gray-1);
+}
+
+/* --- Divider --- */
+.sl-markdown-content hr {
+  margin-block: 3.5rem;
 }
 
 /* --- Caution callout --- */
@@ -349,6 +360,12 @@ starlight-toc a[aria-current="true"] {
 .starlight-aside--caution .starlight-aside__content,
 .starlight-aside--caution .starlight-aside__content > :first-child {
   margin-top: 0;
+}
+
+/* --- Inline code --- */
+.sl-markdown-content :not(pre) > code {
+  border: 1px solid var(--ignis-border);
+  border-radius: 5px;
 }
 
 /* --- Code block header --- */

@@ -27,7 +27,6 @@ export default defineConfig({
           items: [
             { label: "Overview", link: "/" },
             { label: "Requirements", slug: "requirements" },
-            { label: "Quickstart", slug: "quickstart" },
           ],
         },
         {
@@ -51,6 +50,7 @@ export default defineConfig({
               items: [
                 { label: "Deploy with Docker", slug: "server/deploy" },
                 { label: "Environment variables", slug: "server/environment" },
+                { label: "Updating", slug: "server/updating" },
               ],
             },
           ],
@@ -65,9 +65,13 @@ export default defineConfig({
         },
         {
           label: "Help",
+          items: [{ label: "Troubleshooting", slug: "troubleshooting" }],
+        },
+        {
+          label: "About",
           items: [
-            { label: "Troubleshooting", slug: "troubleshooting" },
             { label: "Changelog", slug: "changelog" },
+            { label: "Roadmap", slug: "roadmap" },
           ],
         },
       ],

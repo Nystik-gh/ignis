@@ -10,7 +10,7 @@ Ignis is a harness for accessing Obsidian remotely through a browser. Using a sh
 - Fully web-native Obsidian user experience, no need for clunky remote-desktop solutions with Kasm.
 - Easy file upload and download.
 - Live editing of the same vault in multiple tabs and across devices.
-- Full Obsidian Sync support (including [Obsidian Headless](/docs/using/server-plugins/)).
+- Full Obsidian Sync support (including [Headless Sync](/docs/using/server-plugins/)).
 - Loading different workspaces in different tabs.
 - Mobile UI on small screens.
 - Theme and plugin support, with a few caveats (see [limitations](/docs/using/limitations/)).

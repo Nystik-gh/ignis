@@ -4,6 +4,9 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "gen:changelog": "node scripts/gen-changelog.mjs",
+    "predev": "npm run gen:changelog",
+    "prebuild": "npm run gen:changelog",
     "dev": "astro dev",
     "build": "astro build",
     "preview": "astro preview",

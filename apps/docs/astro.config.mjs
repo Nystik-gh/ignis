@@ -58,9 +58,9 @@ export default defineConfig({
         {
           label: "Security",
           items: [
-            { label: "HTTPS", slug: "security/https" },
-            { label: "Authentication", slug: "security/authentication" },
             { label: "Remote access", slug: "security/remote-access" },
+            { label: "Authentication", slug: "security/authentication" },
+            { label: "Hardening", slug: "security/hardening" },
           ],
         },
         {

@@ -135,7 +135,7 @@ All notable changes to this project will be documented in this file.
 
 ### Added
 
-- Demo mode: per-session vaults, auto-cleanup, proxy allowlist, login blocking. See [examples/demo/](examples/demo/).
+- Demo mode: per-session vaults, auto-cleanup, proxy allowlist, login blocking. See [examples/demo/](https://github.com/Nystik-gh/ignis/tree/main/apps/ignis-server/examples/demo).
 - No-op guard in the bridge plugin and headless-sync plugin when loaded outside Ignis.
 - "Open workspace in new tab" command now loads the workspace preset rather than the per-tab live state.
 - Real digests for `crypto.createHash` (SHA-1/SHA-256/SHA-512/MD5) via `@noble/hashes`.

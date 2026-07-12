@@ -15,7 +15,7 @@ A modern browser. Chrome, Brave, and Firefox are tested. Safari has had only lim
 
 Obsidian needs the browser's crypto and clipboard APIs, which browsers expose only over HTTPS or on `localhost`.
 
-Over plain HTTP at any other origin, such as a LAN IP or a bare domain, the context is considered insecure and several Obsidian features will not function. See the [HTTPS](/docs/security/https/) page for how to set it up, and for a workaround if you wish to run without TLS (not recommended).
+Over plain HTTP at any other origin, such as a LAN IP or a bare domain, the context is considered insecure and several Obsidian features will not function. See the [Remote access](/docs/security/remote-access/) page for how to set it up, and for a workaround if you wish to run without TLS (not recommended).
 
 ## Access control
 

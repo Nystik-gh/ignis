@@ -45,7 +45,7 @@ From the same directory, run:
 docker compose up -d
 ```
 
-The first start downloads Obsidian and the Obsidian Headless CLI, which takes a minute or two. Later starts are faster. To watch the download or check for errors, follow the logs with:
+The first start downloads Obsidian and the `obsidian-headless` CLI, which takes a minute or two. Later starts are faster. To watch the download or check for errors, follow the logs with:
 
 ```bash
 docker compose logs -f
@@ -65,14 +65,14 @@ If a vault is already in the `vaults` folder, Ignis will load it automatically. 
 
 Local access over `http://localhost` works as is, but reaching Ignis over your LAN or the internet requires a secure context. You can achieve this in two ways:
 
-- [Set up TLS](/docs/security/https/), with a reverse proxy or `tailscale serve`.
-- [Treat your host as a secure origin](/docs/security/https/) without TLS, per browser.
+- [Set up TLS](/docs/security/remote-access/#serving-over-https), with a reverse proxy or `tailscale serve`.
+- [Treat your host as a secure origin](/docs/security/remote-access/#running-without-tls) without TLS, per browser.
 
 If you make Ignis available to external networks it is highly recommended that you put [Authentication](/docs/security/authentication/) in front.
 
 ## Configuration
 
-The compose file above is a basic setup. For the full set of environment variables, see [Environment variables](/docs/server/environment/). 
+The compose file above is a basic setup. For the full set of environment variables, see [Environment variables](/docs/server/environment/).
 
 To tune caching, the proxy, and security from inside the app, see [Settings](/docs/using/settings/).
 
@@ -80,14 +80,12 @@ To tune caching, the proxy, and security from inside the app, see [Settings](/do
 
 ### File ownership
 
-Ignis writes files as the user and group given by `PUID` and `PGID`, both `1000` by default. If your host account uses different IDs (run `id` to check), set those two values in the compose to match, so the files stay owned by you.
+Ignis writes files as the user and group given by `PUID` and `PGID`, both `1000` by default. If your host account uses different IDs (run the `id` command to check), set those two values in the compose to match, so the files stay owned by you.
 
-**NFS shares with `root_squash`** need an extra step. On startup Ignis tries to chown the mounted paths to the given user and group, which `root_squash` blocks. Fix it one of two ways:
+On a read-only or NFS `root_squash` mount, Ignis cannot set ownership itself, so the mounted folders must already be writable by the `PUID`/`PGID` user. Set it up one of two ways:
 
-- Set the share's owner to those IDs.
-- Export the share with `no_root_squash`.
-
-If the chown stays blocked, Ignis falls back to the mount's own permissions, so it works only where the given user and group can already read and write.
+- Make the `PUID`/`PGID` user the owner of the folders on the host.
+- Export the NFS share with `no_root_squash`.
 
 ### Offline install
 

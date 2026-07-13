@@ -5,6 +5,7 @@ import starlight from "@astrojs/starlight";
 export default defineConfig({
   site: "https://ignis.thiefling.com",
   base: "/docs",
+  outDir: "./dist/docs",
   integrations: [
     starlight({
       title: "Ignis",

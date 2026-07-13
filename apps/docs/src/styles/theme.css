@@ -219,6 +219,18 @@ starlight-toc a[aria-current="true"] {
   border-top: 0;
 }
 
+@media (max-width: 88rem) {
+  .content-panel {
+    padding-inline-start: 2rem;
+  }
+}
+
+@media (max-width: 72rem) {
+  .content-panel {
+    padding-inline-start: 1rem;
+  }
+}
+
 .content-panel .sl-container {
   margin-inline: 0 auto;
 }

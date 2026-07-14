@@ -26,8 +26,8 @@ The plugin provides dedicated settings tabs for Ignis specific configuration and
 
 ## Plugins and limits
 
-Most plugins built on Obsidian's plugin API work in Ignis, along with themes and snippets. The compatibility layer doesn't cover Node native modules or `child_process`, so plugins that depend on those don't load. For a comprehensive list of what works and what doesn't, see the [README](https://github.com/Nystik-gh/ignis#what-doesnt-work).
+Most plugins built on Obsidian's plugin API work in Ignis, along with themes and snippets. The compatibility layer doesn't cover Node native modules or `child_process`, so plugins that depend on those don't load. For a comprehensive list of what works and what doesn't, see the [documentation](https://ignis.thiefling.com/docs/using/limitations/).
 
 ## Self-hosting
 
-Ignis is open source. If you want to run your own instance, pull the image from Docker Hub and `docker compose up -d`. Setup instructions, environment variables, and the full feature list are in the [README on GitHub](https://github.com/Nystik-gh/ignis).
+Ignis is open source. If you want to run your own instance, pull the image from Docker Hub and `docker compose up -d`. Setup instructions, environment variables, and the full feature list are in the [documentation](https://ignis.thiefling.com/docs/).

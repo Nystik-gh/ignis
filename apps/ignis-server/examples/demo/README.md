@@ -32,7 +32,7 @@ The compose file serves plain HTTP on `:8080`. Any networked deployment must be 
 | `DEMO_TIMEOUT_MS` | Inactivity timeout before a demo session and its vaults are cleaned up. | `1800000` |
 | `DEMO_TEMPLATE_DIR` | Directory copied into each new demo vault. | `server/demo-template/` |
 
-The standard Ignis env vars (`PORT`, `VAULT_ROOT`, `OBSIDIAN_VERSION`, etc.) still apply. See the [main README](../../README.md#environment-variables) for those.
+The standard Ignis env vars (`PORT`, `VAULT_ROOT`, `OBSIDIAN_VERSION`, etc.) still apply. See the [environment variables documentation](https://ignis.thiefling.com/docs/server/environment/) for those.
 
 ## Custom starter vault
 

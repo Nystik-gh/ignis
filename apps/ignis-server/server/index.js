@@ -3,6 +3,7 @@ const fs = require("fs");
 const path = require("path");
 const compression = require("compression");
 const config = require("./config");
+const { listen: listenOn, cleanup: cleanupSocket } = require("./listen");
 const settings = require("./settings");
 const { getVersion } = require("./version");
 const { versionedSrc, cacheControlFor } = require("./cache-headers");
@@ -194,13 +195,8 @@ app.use(express.static(path.join(REPO_ROOT, "packages", "shim", "dist")));
 
 app.use(express.static(config.obsidianAssetsPath));
 
-if (config.socketPath && fs.existsSync(config.socketPath)) {
-  fs.unlinkSync(config.socketPath); // stale socket from unclean shutdown blocks bind
-}
-
-const server = app.listen(config.socketPath ?? config.port, async () => {
+const server = listenOn(app, config, async () => {
   if (config.socketPath) {
-    fs.chmodSync(config.socketPath, 0o666); // reverse proxy runs as another user
     console.log(`[ignis] Server running on unix socket ${config.socketPath}`);
   } else {
     console.log(`[ignis] Server running on http://localhost:${config.port}`);
@@ -239,9 +235,7 @@ async function gracefulShutdown(signal) {
   await shutdownPlugins();
 
   server.close(() => {
-    if (config.socketPath && fs.existsSync(config.socketPath)) {
-      fs.unlinkSync(config.socketPath);
-    }
+    cleanupSocket(config);
     console.log("[ignis] Server closed");
     process.exit(0);
   });

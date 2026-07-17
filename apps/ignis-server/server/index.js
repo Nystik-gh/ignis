@@ -3,6 +3,7 @@ const fs = require("fs");
 const path = require("path");
 const compression = require("compression");
 const config = require("./config");
+const { listen: listenOn, cleanup: cleanupSocket } = require("./listen");
 const settings = require("./settings");
 const { getVersion } = require("./version");
 const { versionedSrc, cacheControlFor } = require("./cache-headers");
@@ -194,8 +195,12 @@ app.use(express.static(path.join(REPO_ROOT, "packages", "shim", "dist")));
 
 app.use(express.static(config.obsidianAssetsPath));
 
-const server = app.listen(config.port, async () => {
-  console.log(`[ignis] Server running on http://localhost:${config.port}`);
+const server = listenOn(app, config, async () => {
+  if (config.socketPath) {
+    console.log(`[ignis] Server running on unix socket ${config.socketPath}`);
+  } else {
+    console.log(`[ignis] Server running on http://localhost:${config.port}`);
+  }
   console.log(`[ignis] Vault root: ${config.vaultRoot}`);
   console.log(`[ignis] Vaults: ${Object.keys(config.vaults).join(", ")}`);
 
@@ -230,6 +235,7 @@ async function gracefulShutdown(signal) {
   await shutdownPlugins();
 
   server.close(() => {
+    cleanupSocket(config);
     console.log("[ignis] Server closed");
     process.exit(0);
   });

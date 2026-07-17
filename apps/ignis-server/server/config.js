@@ -79,6 +79,7 @@ let vaults = discoverVaults();
 
 module.exports = {
   port: process.env.PORT || 8080,
+  socketPath: process.env.SOCKET_PATH || null,
   vaultRoot,
   dataRoot,
   get vaults() {

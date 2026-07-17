@@ -194,8 +194,17 @@ app.use(express.static(path.join(REPO_ROOT, "packages", "shim", "dist")));
 
 app.use(express.static(config.obsidianAssetsPath));
 
-const server = app.listen(config.port, async () => {
-  console.log(`[ignis] Server running on http://localhost:${config.port}`);
+if (config.socketPath && fs.existsSync(config.socketPath)) {
+  fs.unlinkSync(config.socketPath); // stale socket from unclean shutdown blocks bind
+}
+
+const server = app.listen(config.socketPath ?? config.port, async () => {
+  if (config.socketPath) {
+    fs.chmodSync(config.socketPath, 0o666); // reverse proxy runs as another user
+    console.log(`[ignis] Server running on unix socket ${config.socketPath}`);
+  } else {
+    console.log(`[ignis] Server running on http://localhost:${config.port}`);
+  }
   console.log(`[ignis] Vault root: ${config.vaultRoot}`);
   console.log(`[ignis] Vaults: ${Object.keys(config.vaults).join(", ")}`);
 
@@ -230,6 +239,9 @@ async function gracefulShutdown(signal) {
   await shutdownPlugins();
 
   server.close(() => {
+    if (config.socketPath && fs.existsSync(config.socketPath)) {
+      fs.unlinkSync(config.socketPath);
+    }
     console.log("[ignis] Server closed");
     process.exit(0);
   });

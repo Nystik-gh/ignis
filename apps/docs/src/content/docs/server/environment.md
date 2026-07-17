@@ -9,7 +9,8 @@ Configure the server through environment variables, set in the `environment:` bl
 
 | Variable | Default | Description |
 | --- | --- | --- |
-| `PORT` | `8080` | Port the server listens on. |
+| `PORT` | `8080` | Port the server listens on. Ignored when `SOCKET_PATH` is set. |
+| `SOCKET_PATH` | _(unset)_ | Listen on a unix domain socket at this path instead of a TCP port. Useful behind a reverse proxy: bind-mount the socket directory and no port needs to be published. The socket is created mode `0666`; a stale socket file at the path is removed on startup. |
 | `VAULT_ROOT` | `/vaults` | Directory holding your vaults, one sub-folder per vault. |
 | `DATA_ROOT` | `/app/data` | Directory for Ignis state: server plugin config, sync state, and tokens. |
 

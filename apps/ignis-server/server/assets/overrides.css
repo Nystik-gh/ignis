@@ -14,3 +14,10 @@
 .markdown-source-view.mod-cm6 .cm-table-widget td {
   height: auto !important;
 }
+
+/* theme vault select on desktop in mobile mode for good measure */
+.workspace-drawer-header-switcher select,
+.workspace-drawer-header-switcher select option {
+  background-color: var(--background-secondary);
+  color: var(--text-normal);
+}

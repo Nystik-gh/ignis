@@ -3,6 +3,7 @@ import { installGlobals } from "./globals.js";
 import { installCssOverrides } from "./css-overrides.js";
 import { installEmulateMobile } from "./emulate-mobile.js";
 import { installMobileVaultSwitcher } from "./mobile-vault-switcher.js";
+import { installOpenFileParam } from "./open-file-param.js";
 import { initialize, getBootstrapVirtualPlugins } from "./init.js";
 import { fsShim } from "./fs/index.js";
 import { registerUI } from "./ui-registry.js";
@@ -84,6 +85,7 @@ extractObsidianModule()
     }
 
     installMobileVaultSwitcher(window.app);
+    installOpenFileParam(window.app);
 
     // Dynamic import so the bridge's top-level obsidian import resolves after installRequire + extractObsidianModule.
     const mod = await import("@ignis/bridge");

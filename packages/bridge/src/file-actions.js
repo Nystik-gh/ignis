@@ -17,6 +17,46 @@ function triggerDownload(endpoint, filePath, downloadName) {
   a.click();
 }
 
+async function copyIgnisUrl(file) {
+  const url =
+    `${window.location.origin}/?vault=${encodeURIComponent(getVaultId())}` +
+    `&file=${encodeURIComponent(file.path)}`;
+
+  const copied = await writeToClipboard(url);
+
+  new Notice(copied ? "Ignis URL copied" : `Ignis URL: ${url}`);
+}
+
+// navigator.clipboard needs a secure context; the execCommand path also copies on plain HTTP.
+async function writeToClipboard(text) {
+  if (window.isSecureContext && navigator.clipboard) {
+    try {
+      await navigator.clipboard.writeText(text);
+      return true;
+    } catch {
+      // A rejected write (no focus, denied permission) falls through to execCommand.
+    }
+  }
+
+  const textarea = document.createElement("textarea");
+  textarea.value = text;
+  textarea.style.position = "fixed";
+  textarea.style.opacity = "0";
+  document.body.appendChild(textarea);
+  textarea.select();
+
+  let ok = false;
+
+  try {
+    ok = document.execCommand("copy");
+  } catch {
+    ok = false;
+  }
+
+  textarea.remove();
+  return ok;
+}
+
 function showFilePicker(app, targetFolder = null) {
   const input = document.createElement("input");
   input.type = "file";
@@ -71,6 +111,15 @@ function addFileMenuItems(menu, file) {
       .setTitle("Download")
       .setIcon("download")
       .onClick(() => triggerDownload("download", file.path, file.name));
+  });
+
+  // add to "Copy path" submenu
+  menu.addItem((item) => {
+    item
+      .setSection("info.copy")
+      .setTitle("as Ignis URL")
+      .setIcon("link")
+      .onClick(() => copyIgnisUrl(file));
   });
 }
 

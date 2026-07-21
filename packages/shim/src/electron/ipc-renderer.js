@@ -113,6 +113,12 @@ export const ipcRenderer = {
   send(channel, ...args) {
     console.log("[shim:ipcRenderer] send:", channel, args);
 
+    if (syncHandlers[channel]) {
+      const result = syncHandlers[channel](...args);
+      queueMicrotask(() => ipcRenderer._emit(channel, result));
+      return;
+    }
+
     if (channel === "context-menu") {
       queueMicrotask(() =>
         ipcRenderer._emit("context-menu", {

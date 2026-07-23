@@ -225,6 +225,21 @@ function installVibrateShim() {
   } catch {}
 }
 
+function installQueryLocalFontsShim() {
+  const native =
+    typeof window.queryLocalFonts === "function"
+      ? window.queryLocalFonts.bind(window)
+      : null;
+
+  try {
+    Object.defineProperty(window, "queryLocalFonts", {
+      configurable: true,
+      writable: true,
+      value: () => (native ? native().catch(() => []) : Promise.resolve([])),
+    });
+  } catch {}
+}
+
 function installContextMenuFix() {
   // hacky fix to prevent browser from showing context menu while allowing obsidian context menu
   window.addEventListener(
@@ -249,5 +264,6 @@ export function installGlobals() {
   installWindowClose();
   installWindowOpen();
   installVibrateShim();
+  installQueryLocalFontsShim();
   installContextMenuFix();
 }

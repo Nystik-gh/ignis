@@ -1,5 +1,5 @@
 import { installRequire } from "./require.js";
-import { installGlobals } from "./globals.js";
+import { installGlobals } from "./globals/index.js";
 import { installCssOverrides } from "./css-overrides.js";
 import { installEmulateMobile } from "./emulate-mobile.js";
 import { installMobileVaultSwitcher } from "./mobile-vault-switcher.js";

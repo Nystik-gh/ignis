@@ -15,7 +15,7 @@ A plugin can encrypt sensitive data with Electron's `safeStorage`, which uses th
 
 ## Secure context
 
-Some of Obsidian's features need the browser's crypto and clipboard APIs, which are available only in a [secure context](/docs/security/remote-access/): over HTTPS, or on `localhost`. Ignis cannot bypass browser security rules, so over plain HTTP at any other origin those features will not work.
+Some of Obsidian's features need browser APIs that are available only in a [secure context](/docs/security/remote-access/): over HTTPS, or on `localhost`. Ignis cannot bypass browser security rules, so over plain HTTP at any other origin those features will not work.
 
 ## Smaller differences
 

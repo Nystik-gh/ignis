@@ -13,9 +13,11 @@ If you can't find your problem below, search the [issue tracker](https://github.
 
 ## Common problems
 
-### Basic Obsidian features don't work
+### The app warns about an insecure connection
 
-If basic features like the graph view or backlinks are broken, verify that you are reaching Ignis over HTTPS. Plain HTTP access from any origin other than `localhost` results in certain APIs being blocked by the browser. For HTTPS, or a LAN option without a certificate, see [Remote access](/docs/security/remote-access/).
+Ignis shows this warning when it is reached over plain HTTP from any origin other than `localhost`. The browser blocks certain APIs on such origins, and Obsidian features that depend on them break. Solved by serving Ignis over HTTPS, or marking the origin as secure in the browser; both options are covered in [Remote access](/docs/security/remote-access/).
+
+To verify that the problem is caused by an insecure context, check the browser console (F12) for an `[ignis]` line naming the blocked API.
 
 ### Files won't save
 

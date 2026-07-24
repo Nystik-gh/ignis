@@ -5,7 +5,7 @@ description: Reach Ignis beyond localhost.
 
 Obsidian relies on a number of APIs that the browser only provides if certain security standards are met, and so in order for Ignis to function properly it needs to be served in a [secure context](https://developer.mozilla.org/en-US/docs/Web/Security/Secure_Contexts).
 
-This means that if you want to access Ignis from any other origin than `http://localhost` (which is considered secure), you need to either serve Ignis over HTTPS, or add the origin in question to your browser's list of secure origins via experimental settings. If you do not, a number of features, including graph view, backlinks, outline, and more, will not work.
+This means that if you want to access Ignis from any other origin than `http://localhost` (which is considered secure), you need to either serve Ignis over HTTPS, or add the origin in question to your browser's list of secure origins via experimental settings. If you do not, some of Obsidian's features will not work.
 
 If you also expose your instance to the internet, it is essential to add an [authentication](/docs/security/authentication/) layer in front, in order to prevent unauthorized access and potentially malicious changes to your vault.
 

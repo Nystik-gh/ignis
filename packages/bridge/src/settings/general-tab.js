@@ -1,4 +1,4 @@
-import { Setting, Notice } from "obsidian";
+import { Setting, Notice, setIcon } from "obsidian";
 import { isDemoMode } from "../demo-guards.js";
 import { stripBuildMetadata, isNewer } from "../util/version.js";
 import { ListEditorModal } from "./list-editor-modal.js";
@@ -85,8 +85,40 @@ function display(containerEl, app) {
     }
   });
 
+  addInsecureContextCallout(containerEl);
   addServerStatus(containerEl);
   addServerSettings(containerEl, app);
+}
+
+const REMOTE_ACCESS_DOCS_URL =
+  "https://ignis.thiefling.com/docs/security/remote-access/#running-without-tls";
+
+function addInsecureContextCallout(containerEl) {
+  if (window.isSecureContext) {
+    return;
+  }
+
+  const callout = containerEl.createDiv("ignis-insecure-callout");
+
+  const icon = callout.createDiv("ignis-insecure-callout-icon");
+  setIcon(icon, "alert-triangle");
+
+  const text = callout.createDiv("ignis-insecure-callout-text");
+  text.createEl("div", {
+    text: "Insecure connection",
+    cls: "ignis-insecure-callout-title",
+  });
+
+  const body = text.createEl("div", { cls: "ignis-insecure-callout-body" });
+  body.appendText(
+    "The browser disables some APIs on insecure pages, so parts of Obsidian do not work here. ",
+  );
+  body.createEl("a", {
+    text: "Serving Ignis over HTTPS",
+    href: REMOTE_ACCESS_DOCS_URL,
+    attr: { target: "_blank", rel: "noopener noreferrer" },
+  });
+  body.appendText(" restores them.");
 }
 
 const STATUS_LABELS = {

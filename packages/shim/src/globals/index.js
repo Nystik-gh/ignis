@@ -5,7 +5,10 @@ import { installWindowClose, installWindowOpen } from "./window.js";
 import {
   installVibrateShim,
   installQueryLocalFontsShim,
-  installSubtleDigestShim,
+  installRandomUUIDShim,
+  installClipboardShim,
+  installMediaDevicesShim,
+  installSubtleShim,
 } from "./web-apis.js";
 
 function installProcess() {
@@ -37,6 +40,9 @@ export function installGlobals() {
   installWindowOpen();
   installVibrateShim();
   installQueryLocalFontsShim();
-  installSubtleDigestShim();
+  installRandomUUIDShim();
+  installClipboardShim();
+  installMediaDevicesShim();
+  installSubtleShim();
   installContextMenuFix();
 }

@@ -8,9 +8,6 @@ export function getClipboard() {
     typeof navigator !== "undefined" ? navigator.clipboard : undefined;
 
   if (!proto || !clip) {
-    console.warn(
-      "[shim:clipboard] clipboard API unavailable (insecure context?)",
-    );
     return null;
   }
 

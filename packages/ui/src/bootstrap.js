@@ -1,5 +1,5 @@
 import { vaultService } from "@ignis/services";
-import InsecureContextNotice from "./components/layout/InsecureContextNotice.svelte";
+import InsecureContextModal from "./components/layout/InsecureContextModal.svelte";
 
 function showVaultManager() {
   if (document.querySelector(".vault-manager-overlay")) return;
@@ -81,26 +81,29 @@ if (typeof window !== "undefined" && window.__ignis_registerUI) {
   );
 }
 
-// On a non-secure context the browser gates certain APIs causing certain features to break.
-// Show a notice about the degraded experience and how to fix it.
-function showInsecureContextNotice() {
+const INSECURE_ACK_KEY = "ignis-insecure-ack";
+
+function showInsecureContextModal() {
   if (window.isSecureContext) {
     return;
   }
 
-  if (document.getElementById("ignis-insecure-banner")) {
+  if (localStorage.getItem(INSECURE_ACK_KEY)) {
     return;
   }
 
-  const notice = new InsecureContextNotice({ target: document.body });
-  notice.$on("dismiss", () => notice.$destroy());
+  const modal = new InsecureContextModal({ target: document.body });
+  modal.$on("close", () => {
+    localStorage.setItem(INSECURE_ACK_KEY, "1");
+    modal.$destroy();
+  });
 }
 
 if (typeof window !== "undefined") {
   if (document.body) {
-    showInsecureContextNotice();
+    showInsecureContextModal();
   } else {
-    window.addEventListener("DOMContentLoaded", showInsecureContextNotice, {
+    window.addEventListener("DOMContentLoaded", showInsecureContextModal, {
       once: true,
     });
   }

@@ -12,6 +12,7 @@ import * as pluginRegistry from "./plugin-registry.js";
 import { initStatusBar } from "./status-bar.js";
 import { WorkspacePickerModal } from "./workspace-picker.js";
 import { startDemoGuards, stopDemoGuards } from "./demo-guards.js";
+import { initInsecureApiNotice } from "./insecure-api-notice.js";
 
 class IgnisBridgePlugin extends Plugin {
   async onload() {
@@ -26,6 +27,7 @@ class IgnisBridgePlugin extends Plugin {
     patchSettingsModal(this);
     startDemoGuards();
     this._statusBarUnsub = initStatusBar(this);
+    this._insecureApiUnsub = initInsecureApiNotice();
 
     this.addRibbonIcon("upload", "Upload file", () => {
       showFilePicker(this.app);
@@ -57,6 +59,10 @@ class IgnisBridgePlugin extends Plugin {
 
     if (this._statusBarUnsub) {
       this._statusBarUnsub();
+    }
+
+    if (this._insecureApiUnsub) {
+      this._insecureApiUnsub();
     }
 
     unpatchSettingsModal(this);

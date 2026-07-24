@@ -85,6 +85,38 @@
   opacity: 0.6;
 }
 
+.ignis-insecure-callout {
+  display: flex;
+  gap: 12px;
+  padding: 12px 14px;
+  margin-bottom: 16px;
+  border: 1px solid rgba(190, 150, 45, 0.55);
+  background: rgba(190, 150, 45, 0.09);
+  border-radius: 8px;
+}
+
+.ignis-insecure-callout-icon {
+  flex-shrink: 0;
+  color: var(--text-warning, #d6a935);
+}
+
+.ignis-insecure-callout-icon svg {
+  width: 18px;
+  height: 18px;
+}
+
+.ignis-insecure-callout-title {
+  font-weight: var(--font-semibold);
+  color: var(--text-warning, #d6a935);
+  margin-bottom: 4px;
+}
+
+.ignis-insecure-callout-body {
+  font-size: var(--font-ui-small);
+  color: var(--text-muted);
+  line-height: 1.5;
+}
+
 .ignis-status-dot {
   display: inline-block;
   width: 8px;

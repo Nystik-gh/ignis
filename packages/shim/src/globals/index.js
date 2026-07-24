@@ -2,7 +2,11 @@ import { processShim } from "../process.js";
 import { installBuffer } from "./buffer.js";
 import { installFetchShim } from "./fetch.js";
 import { installWindowClose, installWindowOpen } from "./window.js";
-import { installVibrateShim, installQueryLocalFontsShim } from "./web-apis.js";
+import {
+  installVibrateShim,
+  installQueryLocalFontsShim,
+  installSubtleDigestShim,
+} from "./web-apis.js";
 
 function installProcess() {
   window.process = processShim;
@@ -33,5 +37,6 @@ export function installGlobals() {
   installWindowOpen();
   installVibrateShim();
   installQueryLocalFontsShim();
+  installSubtleDigestShim();
   installContextMenuFix();
 }

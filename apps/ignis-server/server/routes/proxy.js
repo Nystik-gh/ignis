@@ -134,6 +134,45 @@ function httpError(status, message) {
   return e;
 }
 
+const BLOCK_DOCS_URL =
+  "https://ignis.thiefling.com/docs/sync/#servers-on-a-private-address";
+
+const PRIVATE_HOST_REMEDY =
+  "Allow it with the PROXY_ALLOW_PRIVATE_HOSTS env var, or add the host to " +
+  "direct-fetch hosts (Settings > Ignis > General > Security) if it serves " +
+  `CORS headers. See ${BLOCK_DOCS_URL}`;
+
+function blockError(status, message, block) {
+  const e = httpError(status, message);
+  e.block = block;
+  console.warn(`[proxy] ${message}`);
+  return e;
+}
+
+function privateHostError(host) {
+  return blockError(
+    403,
+    `Ignis blocked a connection to ${host}: private addresses are blocked by default. ${PRIVATE_HOST_REMEDY}`,
+    { code: "private-host", host },
+  );
+}
+
+function privateResolveError(host, address) {
+  return blockError(
+    403,
+    `Ignis blocked a connection to ${host}: it resolves to a private address (${address}). ${PRIVATE_HOST_REMEDY}`,
+    { code: "private-resolve", host, address },
+  );
+}
+
+function dnsError(host) {
+  return blockError(
+    502,
+    `Ignis could not resolve ${host}. Check the hostname, or use an IP address directly.`,
+    { code: "dns", host },
+  );
+}
+
 function safeLookup(hostname, options, callback) {
   dns.lookup(hostname, { ...options, all: true }, (err, addresses) => {
     if (err) {
@@ -142,13 +181,13 @@ function safeLookup(hostname, options, callback) {
     }
 
     if (!addresses.length) {
-      callback(httpError(502, "DNS resolution failed"));
+      callback(dnsError(hostname));
       return;
     }
 
     for (const a of addresses) {
       if (!addressAllowed(a.address)) {
-        callback(httpError(403, "Host resolves to a private address"));
+        callback(privateResolveError(hostname, a.address));
         return;
       }
     }
@@ -180,7 +219,7 @@ async function assertPublicUrl(urlStr) {
 
   if (net.isIP(host)) {
     if (!addressAllowed(host)) {
-      throw httpError(403, "Host not allowed");
+      throw privateHostError(host);
     }
 
     return;
@@ -191,12 +230,12 @@ async function assertPublicUrl(urlStr) {
   try {
     addrs = await dns.promises.lookup(host, { all: true });
   } catch {
-    throw httpError(502, "DNS resolution failed");
+    throw dnsError(host);
   }
 
   for (const a of addrs) {
     if (!addressAllowed(a.address)) {
-      throw httpError(403, "Host resolves to a private address");
+      throw privateResolveError(host, a.address);
     }
   }
 }
@@ -264,7 +303,7 @@ async function proxyRequest({ url, method, headers, body }) {
 
     // An IP-literal host skips DNS, so safeLookup never runs for it; check it here.
     if (net.isIP(current.hostname) && !addressAllowed(current.hostname)) {
-      throw httpError(403, "Host not allowed");
+      throw privateHostError(current.hostname);
     }
 
     const res = await requestOnce(
@@ -381,7 +420,11 @@ router.post("/", async (req, res) => {
   const proxyMode = settings.get("proxyMode");
 
   if (proxyMode === "disabled") {
-    return res.status(403).json({ error: "Proxy is disabled" });
+    return res.status(403).json({
+      error:
+        "Ignis blocked the connection: proxy access is disabled (Settings > Ignis > General > Security).",
+      code: "disabled",
+    });
   }
 
   try {
@@ -389,7 +432,8 @@ router.post("/", async (req, res) => {
   } catch (e) {
     // assertPublicUrl throws deliberate, safe guard messages (blocked host, bad scheme); don't use sanitizeError.
     // leak-allow
-    return res.status(e.statusCode || 400).json({ error: e.message });
+    const body = { error: e.message, ...e.block };
+    return res.status(e.statusCode || 400).json(body);
   }
 
   if (proxyMode === "allowlist") {
@@ -397,9 +441,11 @@ router.post("/", async (req, res) => {
     const host = new URL(url).hostname;
 
     if (!allowlist.includes(host)) {
-      return res
-        .status(403)
-        .json({ error: `Host not in proxy allowlist: ${host}` });
+      return res.status(403).json({
+        error: `Ignis blocked a connection to ${host}: the host is not in the proxy host allowlist (Settings > Ignis > General > Security).`,
+        code: "allowlist",
+        host,
+      });
     }
   }
 
@@ -447,6 +493,12 @@ router.post("/", async (req, res) => {
       body: respBody.toString("base64"),
     });
   } catch (e) {
+    if (e.block) {
+      // leak-allow
+      const body = { error: e.message, ...e.block };
+      return res.status(e.statusCode || 403).json(body);
+    }
+
     res.status(e.statusCode || 502).json(sanitizeError(e));
   }
 });

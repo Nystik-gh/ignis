@@ -3,6 +3,10 @@ description: Something in Ignis behaves wrongly in the browser. For a community 
 title: "[Bug] "
 labels: ["bug"]
 body:
+  - type: markdown
+    attributes:
+      value: |
+        Common problems have fixes in [Troubleshooting](https://ignis.thiefling.com/docs/troubleshooting/).
   - type: textarea
     id: what-happens
     attributes:

@@ -6,7 +6,7 @@ body:
   - type: markdown
     attributes:
       value: |
-        Plugin compatibility is tracked in [issue #9](https://github.com/Nystik-gh/ignis/issues/9). Check whether the plugin is already listed there.
+        Plugin compatibility is tracked in [issue #9](https://github.com/Nystik-gh/ignis/issues/9). Check whether the plugin is already listed there. Common problems have fixes in [Troubleshooting](https://ignis.thiefling.com/docs/troubleshooting/).
   - type: textarea
     id: what-happens
     attributes:

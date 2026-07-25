@@ -73,7 +73,10 @@ export default defineConfig({
         },
         {
           label: "Help",
-          items: [{ label: "Troubleshooting", slug: "troubleshooting" }],
+          items: [
+            { label: "Troubleshooting", slug: "troubleshooting" },
+            { label: "Sync connectivity", slug: "sync" },
+          ],
         },
         {
           label: "About",

@@ -3,6 +3,7 @@
 // Throws an Error carrying the server's message on failure.
 
 import { arrayBufferToBase64, base64ToArrayBuffer } from "./base64.js";
+import { isProxyBlock, reportProxyBlock } from "./proxy-block.js";
 
 export async function proxyFetch({ url, method, headers, body, contentType }) {
   let encodedBody = null;
@@ -44,6 +45,11 @@ export async function proxyFetch({ url, method, headers, body, contentType }) {
 
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
+
+    if (isProxyBlock(err)) {
+      reportProxyBlock(err);
+    }
+
     throw new Error(err.error || "Proxy request failed");
   }
 

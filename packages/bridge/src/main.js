@@ -13,6 +13,7 @@ import { initStatusBar } from "./status-bar.js";
 import { WorkspacePickerModal } from "./workspace-picker.js";
 import { startDemoGuards, stopDemoGuards } from "./demo-guards.js";
 import { initInsecureApiNotice } from "./insecure-api-notice.js";
+import { initProxyBlockNotice } from "./proxy-block-notice.js";
 
 class IgnisBridgePlugin extends Plugin {
   async onload() {
@@ -28,6 +29,7 @@ class IgnisBridgePlugin extends Plugin {
     startDemoGuards();
     this._statusBarUnsub = initStatusBar(this);
     this._insecureApiUnsub = initInsecureApiNotice();
+    this._proxyBlockUnsub = initProxyBlockNotice(this.app);
 
     this.addRibbonIcon("upload", "Upload file", () => {
       showFilePicker(this.app);
@@ -63,6 +65,10 @@ class IgnisBridgePlugin extends Plugin {
 
     if (this._insecureApiUnsub) {
       this._insecureApiUnsub();
+    }
+
+    if (this._proxyBlockUnsub) {
+      this._proxyBlockUnsub();
     }
 
     unpatchSettingsModal(this);

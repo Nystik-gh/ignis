@@ -27,6 +27,10 @@ Check your container logs for permission errors. Write problems are commonly the
 
 Plugin problems usually come from a plugin relying on a missing or incompatible API. Check the browser console (F12), and look for lines that start with `[ignis] Unshimmed require:`, `[shim:MISS]`, or `Plugin failure:`. Check the [issue tracker](https://github.com/Nystik-gh/ignis/issues) for existing reports of the plugin, and [issue #9](https://github.com/Nystik-gh/ignis/issues/9), which tracks what plugins have been tested along with any compatibility notes. If you can't find a report or a compatibility note, create a new issue.
 
+### A sync plugin can't connect
+
+The usual cause is a sync server on a private address: Ignis relays plugin requests through its server, which refuses private addresses until they are allowed. Sync over a WebSocket has its own requirements, since the browser opens that connection itself. Both are covered in [Sync connectivity](/docs/sync/).
+
 ### A vault doesn't appear in the vault list
 
 Check the container logs for a `[config] Skipping unreadable vault entry` line, which names the folder and why it was skipped. `EACCES` means the folder is not readable by the `PUID`/`PGID` user; see [File ownership](/docs/server/deploy/#file-ownership). `ENOENT` on a symlinked folder means the link target is not mounted inside the container; see [Vaults on other mounts](/docs/server/deploy/#vaults-on-other-mounts).

@@ -549,6 +549,8 @@ router.get("/tree", async (req, res) => {
 
     await walk(rootPath, "");
 
+    // don’t cache the tree response.
+    res.setHeader("Cache-Control", "no-store");
     res.json(tree);
   } catch (e) {
     res.status(500).json(sanitizeError(e));

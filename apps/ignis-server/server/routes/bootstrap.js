@@ -240,6 +240,9 @@ router.get("/", async (req, res) => {
       return res.status(404).json({ error: "Vault not found" });
     }
 
+    // don't cache the bootstrap response, since it contains the metadata tree which can change frequently.
+    res.setHeader("Cache-Control", "no-store");
+
     // In demo mode, route through res.json so the demo middleware can translate vault names per-session.
     // The pre-compressed buffer path bakes the storage prefix in and would bypass the response wrapper.
     // Deep-clone so the demo translator's in-place mutation doesn't pollute the cached response object.
@@ -266,7 +269,6 @@ router.get("/", async (req, res) => {
       res.setHeader("Content-Type", "application/json; charset=utf-8");
       res.setHeader("Content-Encoding", encoding);
       res.setHeader("Content-Length", buf.length);
-      res.setHeader("Cache-Control", "no-cache");
 
       return res.status(200).end(buf);
     }

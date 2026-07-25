@@ -84,9 +84,14 @@ class ProxyBlockModal extends Modal {
       contentEl.createEl("p", {
         text: `Proxy access is restricted to an allowlist, and ${host} is not on it. Add it under Settings > Ignis > General > Security > Proxy host allowlist.`,
       });
-    } else {
+    } else if (code === "disabled") {
       contentEl.createEl("p", {
         text: "Proxy access is disabled under Settings > Ignis > General > Security. Cross-origin plugin requests are blocked while it is disabled.",
+      });
+    } else {
+      // fallback to server error if unknown code.
+      contentEl.createEl("p", {
+        text: this.detail.message || "Ignis blocked the connection.",
       });
     }
   }
@@ -103,12 +108,12 @@ export function initProxyBlockNotice(app) {
     const frag = document.createDocumentFragment();
     frag.appendChild(document.createTextNode(noticeText(detail) + " "));
 
-    const link = document.createElement("a");
-    link.textContent = "Details";
-    link.addEventListener("click", () => {
+    const details = document.createElement("button");
+    details.textContent = "Details";
+    details.addEventListener("click", () => {
       new ProxyBlockModal(app, detail).open();
     });
-    frag.appendChild(link);
+    frag.appendChild(details);
 
     new Notice(frag, 10000);
   };

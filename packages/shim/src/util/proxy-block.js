@@ -19,11 +19,18 @@ export function isProxyBlock(body) {
 }
 
 export function reportProxyBlock(body) {
-  const key = `${body.code}:${body.host || ""}`;
   const now = Date.now();
-  const last = lastReported.get(key);
 
-  if (last !== undefined && now - last < REPORT_INTERVAL_MS) {
+  // drop expired entries
+  for (const [k, at] of lastReported) {
+    if (now - at >= REPORT_INTERVAL_MS) {
+      lastReported.delete(k);
+    }
+  }
+
+  const key = `${body.code}:${body.host || ""}`;
+
+  if (lastReported.has(key)) {
     return;
   }
 

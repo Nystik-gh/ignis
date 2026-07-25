@@ -11,7 +11,7 @@ Ignis adds its own tab to Obsidian's settings, where you configure the running s
 
 **Input cache** (default 200 MB) holds files you pick in certain file dialogs, such as when using the Importer plugin. **Input cache TTL** (default 5 minutes) is how long a picked file stays available before it is dropped.
 
-Cache changes take effect after a reload.
+Cache changes take effect after a tab refresh.
 
 ## Security
 
@@ -25,7 +25,7 @@ Cache changes take effect after a reload.
 
 See [Hardening](/docs/security/hardening/) for what the proxy exposes and why you would narrow it.
 
-**Direct-fetch hosts** are fetched by the browser directly, bypassing the proxy, and work only for hosts that allow cross-origin browser requests. This applies after a reload.
+**Direct-fetch hosts** are fetched by the browser directly, bypassing the proxy, and work only for hosts that allow cross-origin browser requests. This applies after a tab refresh.
 
 ## Advanced
 

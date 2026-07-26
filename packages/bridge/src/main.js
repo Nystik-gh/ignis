@@ -10,6 +10,8 @@ import {
 } from "./settings/inject.js";
 import * as pluginRegistry from "./plugin-registry.js";
 import { initStatusBar } from "./status-bar.js";
+import { initSaveNotice } from "./save-notice.js";
+import { installLoadingGate } from "./loading-gate.js";
 import { WorkspacePickerModal } from "./workspace-picker.js";
 import { startDemoGuards, stopDemoGuards } from "./demo-guards.js";
 import { initInsecureApiNotice } from "./insecure-api-notice.js";
@@ -28,6 +30,8 @@ class IgnisBridgePlugin extends Plugin {
     patchSettingsModal(this);
     startDemoGuards();
     this._statusBarUnsub = initStatusBar(this);
+    this._saveNoticeUnsub = initSaveNotice();
+    this._loadingGateUnsub = installLoadingGate();
     this._insecureApiUnsub = initInsecureApiNotice();
     this._proxyBlockUnsub = initProxyBlockNotice(this.app);
 
@@ -61,6 +65,14 @@ class IgnisBridgePlugin extends Plugin {
 
     if (this._statusBarUnsub) {
       this._statusBarUnsub();
+    }
+
+    if (this._saveNoticeUnsub) {
+      this._saveNoticeUnsub();
+    }
+
+    if (this._loadingGateUnsub) {
+      this._loadingGateUnsub();
     }
 
     if (this._insecureApiUnsub) {

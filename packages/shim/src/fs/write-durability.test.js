@@ -68,7 +68,11 @@ describe("retry on failure", () => {
 
     await vi.advanceTimersByTimeAsync(1000);
 
-    expect(transport.writeFile).toHaveBeenCalledWith("a.md", "payload", "utf-8");
+    expect(transport.writeFile).toHaveBeenCalledWith(
+      "a.md",
+      "payload",
+      "utf-8",
+    );
     expect(wd.getState()).toBe("clean");
   });
 
@@ -163,6 +167,37 @@ describe("silent (config) writes", () => {
     expect(wd.getState()).toBe("clean");
     // A silent give-up must discard the entry, not leave it lingering in the map forever.
     expect(wd._size()).toBe(0);
+  });
+});
+
+describe("listPending", () => {
+  it("lists contributing paths, excluding silent, pre-threshold, and failed entries", async () => {
+    transport.writeFile.mockRejectedValue(new Error("offline"));
+
+    wd.trackWrite("a.md");
+    wd.trackWrite("cfg.json", { silent: true });
+
+    // Nothing contributes before the pending threshold.
+    expect(wd.listPending()).toEqual([]);
+
+    vi.advanceTimersByTime(1000);
+
+    // a.md is over threshold; the silent write never lists.
+    expect(wd.listPending()).toEqual(["a.md"]);
+
+    const b = wd.trackWrite("b.md");
+    b.failure("d", "utf-8", null);
+
+    // A retrying write lists immediately.
+    expect(wd.listPending()).toEqual(["a.md", "b.md"]);
+
+    for (let i = 0; i < 9; i++) {
+      await vi.advanceTimersByTimeAsync(30000);
+    }
+
+    // Permanently failed entries drop out of pending (they list via listFailed).
+    expect(wd.listFailed()).toEqual(["b.md"]);
+    expect(wd.listPending()).toEqual(["a.md"]);
   });
 });
 

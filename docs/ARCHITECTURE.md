@@ -58,7 +58,7 @@ Immediately after the bootstrap response is applied, the client prefetches file 
 | `path`               | path-browserify                                                                                 |
 | `url`                | Browser URL API wrapper                                                                         |
 | `process`            | Platform/version stubs                                                                          |
-| `crypto`             | `randomBytes`, `randomUUID`, `scrypt` use Web Crypto. `createHash` produces real digests for SHA-1/SHA-256/SHA-512/MD5 via `@noble/hashes`. Web Crypto needs a secure context; on plain HTTP at a non-localhost origin it is unavailable and the UI shows an insecure-context banner. |
+| `crypto`             | `randomBytes`, `randomUUID`, `scrypt` use Web Crypto. `createHash` produces real digests for SHA-1/SHA-256/SHA-512/MD5 via `@noble/hashes`. On plain HTTP at a non-localhost origin, where the browser withholds Web Crypto, the shim fills the gaps it safely can: `crypto.subtle.digest` via `@noble/hashes`, `randomUUID` built from `getRandomValues`; the remaining `subtle` operations reject and report. The UI shows a once-per-origin insecure-context modal, and blocked API calls raise notices. |
 | `electron`           | `ipcRenderer` dispatcher, `webFrame` stubs, `clipboard`, `nativeImage`, `safeStorage` (passthrough, reports unavailable). |
 | `@electron/remote`   | Partial: `clipboard`, `shell`, `dialog` (with a sync file picker workaround), `Menu`, `BrowserWindow`, `nativeTheme`, `session`, `systemPreferences`, `screen`, `nativeImage`, `Notification`, `app`. |
 | `zlib`               | Sync + callback variants via pako (`deflate`, `inflate`, `gzip`, `gunzip`, raw). Streaming classes (`createGzip` etc.) throw. |
@@ -123,9 +123,12 @@ Ignis's built-in integration with the Obsidian UI. It subclasses Obsidian's `Plu
 
 The bridge contributes:
 
-- **File actions**: a ribbon icon for uploading files into the current folder, and right-click menu items: Download (single file), Download as ZIP (folder), and Upload file (folder).
+- **File actions**: a ribbon icon for uploading files into the current folder, and right-click menu items: Download (single file), Download as ZIP (folder), Upload file (folder), and "as Ignis URL" (copies a `?vault=&file=` link to the note).
 - **Commands**: `Open workspace in new tab`.
-- **Status bar item**: a dot showing the WebSocket connection state to the Ignis server.
+- **Status bar item**: a dot carrying connection state (color, from the WebSocket) and write state (a pulse while writes are pending or retrying), with a sticky failure Notice offering Retry when writes give up.
+- **Loading gate**: patches `MarkdownView.onLoadFile` so a note whose content is still loading stays in reading mode with a loading indicator and blocked input, restoring the prior editing mode when the read settles (`loading-gate.js`, `view-mode.js`).
+- **Save notice**: a "Saving..." Notice when a save takes more than a couple of seconds, changing to "Saved" when it finishes; config-file writes are excluded (`save-notice.js`).
+- **Runtime warnings**: listens for the shim's `ignis:insecure-api` and `ignis:proxy-blocked` events and shows a Notice for each, rate limited so retry loops don't spam. For a blocked proxy connection the Notice has a Details button that opens a modal explaining how to unblock it (`insecure-api-notice.js`, `proxy-block-notice.js`). The Ignis settings tab also shows a warning when the connection is insecure.
 - **Settings injection**: monkey-patches `app.setting.onOpen` to add two tabs in their own "Ignis" sidebar group. Each enabled Ignis plugin's companion is pulled into a separate "Ignis Core Plugins" sidebar group.
 - **Demo guards**: in demo mode, a MutationObserver disables every email/password input that appears anywhere in the document.
 

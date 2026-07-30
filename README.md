@@ -75,6 +75,7 @@ Ignis currently ships as a self-hosted server, with a desktop plugin variant pla
 - Multi-vault support with create, open, switch, rename, and delete, and a different vault per browser tab.
 - Live sync between tabs over WebSocket, so edits propagate within a second.
 - Saved workspaces opened in separate tabs via a `?workspace=` URL parameter.
+- Notes can be opened directly by URL via a `?file=` parameter, with an "as Ignis URL" option in the note menu 'Copy path' section.
 - Obsidian Sync in a logged-in tab, or server-side Headless Sync that runs without a tab open.
 - A cross-origin proxy for plugin requests, with a direct-fetch allowlist for CORS-friendly hosts.
 - A mobile UI on small screens.

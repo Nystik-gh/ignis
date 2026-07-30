@@ -3,6 +3,10 @@ description: "The container won't start or serve correctly: Docker, reverse prox
 title: "[Deploy] "
 labels: ["bug", "deployment"]
 body:
+  - type: markdown
+    attributes:
+      value: |
+        Common deployment problems have fixes in [Troubleshooting](https://ignis.thiefling.com/docs/troubleshooting/).
   - type: textarea
     id: what-happens
     attributes:

@@ -2,6 +2,29 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.8.9] - Karm (2026-07-30)
+
+### Added
+
+- Open a note via URL with the `?file=` query parameter, Added "as Ignis URL" option under 'Copy path' menu.
+- `queryLocalFonts` shim, `crypto.randomUUID` and `crypto.subtle.digest` shims for plain HTTP access.
+- Indicator notices for when a save is in-flight and save completion.
+- Block input while a note is loading over a slow connection.
+
+### Changed
+
+- Better warning and info when accessing in an insecure context.
+- Improved error messages for the proxy providing explanations for why a connection is blocked.
+- Updating to a new Obsidian version is now smoother.
+- Clipboard support improved over plain HTTP.
+
+### Fixed
+
+- Desktop Node APIs are no longer blocked on mobile
+- The vault switcher now functions in mobile mode.
+- Vault no longer loads from a stale browser-cached state.
+- `fs.utimes` bug fixed.
+
 ## [0.8.8] - Karm (2026-07-05)
 
 ### Added

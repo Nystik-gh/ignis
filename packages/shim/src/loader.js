@@ -1,6 +1,9 @@
 import { installRequire } from "./require.js";
-import { installGlobals } from "./globals.js";
+import { installGlobals } from "./globals/index.js";
 import { installCssOverrides } from "./css-overrides.js";
+import { installEmulateMobile } from "./emulate-mobile.js";
+import { installMobileVaultSwitcher } from "./mobile-vault-switcher.js";
+import { installOpenFileParam } from "./open-file-param.js";
 import { initialize, getBootstrapVirtualPlugins } from "./init.js";
 import { fsShim } from "./fs/index.js";
 import { registerUI } from "./ui-registry.js";
@@ -17,6 +20,7 @@ import {
   onStateChange,
   onFailure,
   onFailureChange,
+  listPending,
   listFailed,
   retryAll,
   getDetail,
@@ -31,6 +35,7 @@ installIgnisApi(wsClient, {
   onStateChange,
   onFailure,
   onFailureChange,
+  listPending,
   listFailed,
   retryAll,
   getDetail,
@@ -51,13 +56,7 @@ const BRIDGE_MANIFEST = {
 installGlobals(); // process, Buffer, window overrides (before require so Buffer is available)
 installRequire(); // shim registry, window.require
 installCssOverrides(); // browser-specific CSS fixes
-
-// Set EmulateMobile flag for small viewports so Obsidian activates its mobile UI
-if (window.innerWidth < 600) {
-  localStorage.setItem("EmulateMobile", "true");
-} else {
-  localStorage.removeItem("EmulateMobile");
-}
+installEmulateMobile();
 
 // Fallback that ends the boot window if layout-ready never fires.
 setTimeout(() => {
@@ -79,9 +78,16 @@ if (window.__currentVaultId) {
 extractObsidianModule()
   .then(async () => {
     // window.app exists once Obsidian's module is extracted.
-    if (window.app && window.app.workspace && window.app.workspace.onLayoutReady) {
+    if (
+      window.app &&
+      window.app.workspace &&
+      window.app.workspace.onLayoutReady
+    ) {
       window.app.workspace.onLayoutReady(onLayoutReady);
     }
+
+    installMobileVaultSwitcher(window.app);
+    installOpenFileParam(window.app);
 
     // Dynamic import so the bridge's top-level obsidian import resolves after installRequire + extractObsidianModule.
     const mod = await import("@ignis/bridge");

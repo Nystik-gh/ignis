@@ -284,6 +284,19 @@ export function onFailureChange(handler) {
   };
 }
 
+// Paths currently contributing to the "pending" aggregate.
+export function listPending() {
+  const pending = [];
+
+  for (const [path, entry] of entries) {
+    if (contributesPending(entry)) {
+      pending.push(path);
+    }
+  }
+
+  return pending;
+}
+
 export function listFailed() {
   const failed = [];
 

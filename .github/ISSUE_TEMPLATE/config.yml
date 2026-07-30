@@ -1,5 +1,8 @@
 blank_issues_enabled: false
 contact_links:
+  - name: Troubleshooting
+    url: https://ignis.thiefling.com/docs/troubleshooting/
+    about: Common problems and fixes worth trying before creating an issue.
   - name: Question or help
     url: https://github.com/Nystik-gh/ignis/discussions
     about: Ask questions and get setup help in Discussions.

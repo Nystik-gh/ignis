@@ -85,6 +85,68 @@
   opacity: 0.6;
 }
 
+.ignis-insecure-callout {
+  display: flex;
+  gap: 12px;
+  padding: 12px 14px;
+  margin-bottom: 16px;
+  border: 1px solid rgba(190, 150, 45, 0.55);
+  background: rgba(190, 150, 45, 0.09);
+  border-radius: 8px;
+}
+
+.ignis-insecure-callout-icon {
+  flex-shrink: 0;
+  color: var(--text-warning, #d6a935);
+}
+
+.ignis-insecure-callout-icon svg {
+  width: 18px;
+  height: 18px;
+}
+
+.ignis-insecure-callout-title {
+  font-weight: var(--font-semibold);
+  color: var(--text-warning, #d6a935);
+  margin-bottom: 4px;
+}
+
+.ignis-insecure-callout-body {
+  font-size: var(--font-ui-small);
+  color: var(--text-muted);
+  line-height: 1.5;
+}
+
+.ignis-block-modal p {
+  margin: 0 0 12px;
+  line-height: 1.5;
+}
+
+.ignis-block-modal p:last-child {
+  margin-bottom: 0;
+}
+
+.ignis-block-modal ul {
+  margin: 0 0 14px;
+  padding-left: 22px;
+}
+
+.ignis-block-modal li {
+  margin-bottom: 10px;
+  line-height: 1.5;
+}
+
+.ignis-block-modal li:last-child {
+  margin-bottom: 0;
+}
+
+.ignis-block-modal code {
+  font-size: 0.9em;
+  background: var(--background-primary-alt);
+  padding: 1px 5px;
+  border-radius: 4px;
+}
+
 .ignis-status-dot {
   display: inline-block;
   width: 8px;
@@ -154,6 +216,30 @@
   display: flex;
   gap: 8px;
   margin-top: 8px;
+}
+
+.ignis-loading {
+  position: relative;
+}
+
+.ignis-loading .cm-editor,
+.ignis-loading .markdown-reading-view {
+  opacity: 0.5;
+}
+
+.ignis-loading::after {
+  content: "Loading\2026";
+  position: absolute;
+  top: 8px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 2px 10px;
+  border-radius: 12px;
+  background: var(--background-modifier-hover);
+  color: var(--text-muted);
+  font-size: var(--font-ui-smaller);
+  pointer-events: none;
+  z-index: 20;
 }
 
 .ignis-plugins-description {

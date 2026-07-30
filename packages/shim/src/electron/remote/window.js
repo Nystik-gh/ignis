@@ -1,4 +1,5 @@
 import { getClipboard } from "./native-clipboard.js";
+import { reportInsecureApi } from "../../util/insecure-api.js";
 
 const currentWindowState = {
   title: "Obsidian",
@@ -203,6 +204,7 @@ const currentWebContents = {
     const clip = getClipboard();
 
     if (!clip) {
+      reportInsecureApi("clipboard paste");
       return;
     }
 
@@ -244,6 +246,7 @@ const currentWebContents = {
     const clip = getClipboard();
 
     if (!clip) {
+      reportInsecureApi("clipboard paste");
       return;
     }
 

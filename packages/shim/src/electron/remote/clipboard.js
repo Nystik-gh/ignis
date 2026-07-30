@@ -1,4 +1,6 @@
 import { getClipboard } from "./native-clipboard.js";
+import { execCommandCopy, execCommandCopyHTML } from "../../util/clipboard.js";
+import { reportInsecureApi } from "../../util/insecure-api.js";
 
 export const clipboardShim = {
   readText() {
@@ -9,6 +11,14 @@ export const clipboardShim = {
     const clip = getClipboard();
 
     if (!clip) {
+      try {
+        if (!execCommandCopy(text)) {
+          console.warn("[shim:clipboard] execCommand copy failed");
+        }
+      } catch (e) {
+        console.warn("[shim:clipboard] execCommand copy failed:", e);
+      }
+
       return;
     }
 
@@ -25,6 +35,14 @@ export const clipboardShim = {
     const clip = getClipboard();
 
     if (!clip) {
+      try {
+        if (!execCommandCopyHTML(html, html)) {
+          console.warn("[shim:clipboard] execCommand copy failed");
+        }
+      } catch (e) {
+        console.warn("[shim:clipboard] execCommand copy failed:", e);
+      }
+
       return;
     }
 
@@ -52,6 +70,8 @@ export const clipboardShim = {
     const clip = getClipboard();
 
     if (!clip) {
+      // images can't be copied on insecure origins.
+      reportInsecureApi("clipboard.writeImage");
       return;
     }
 
@@ -80,6 +100,7 @@ export const clipboardShim = {
     const clip = getClipboard();
 
     if (!clip) {
+      reportInsecureApi("clipboard.clear", { passive: true });
       return;
     }
 

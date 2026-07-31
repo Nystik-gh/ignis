@@ -503,6 +503,24 @@ router.get("/tree", async (req, res) => {
   }
 
   try {
+    if (!req.query.path) {
+      // grab the tree from the bootstrap cache.
+      const entry = await bootstrapRoutes.getOrBuild(req._vaultId);
+
+      if (!entry) {
+        return res.status(404).json({ error: "Vault not found" });
+      }
+
+      res.setHeader("Cache-Control", "no-store");
+
+      // The demo response rewriter mutates in place.
+      if (req._demoSessionId) {
+        return res.json(JSON.parse(JSON.stringify(entry.response.tree)));
+      }
+
+      return res.json(entry.response.tree);
+    }
+
     const tree = {};
 
     async function walk(dir, prefix) {
@@ -549,7 +567,7 @@ router.get("/tree", async (req, res) => {
 
     await walk(rootPath, "");
 
-    // don’t cache the tree response.
+    // don't cache the tree response.
     res.setHeader("Cache-Control", "no-store");
     res.json(tree);
   } catch (e) {

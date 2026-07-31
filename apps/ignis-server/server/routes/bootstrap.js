@@ -285,3 +285,4 @@ module.exports.invalidateVault = invalidateVault;
 module.exports.invalidateAll = invalidateAll;
 module.exports.warmUp = warmUp;
 module.exports.walkTree = walkTree;
+module.exports.getOrBuild = getOrBuild;

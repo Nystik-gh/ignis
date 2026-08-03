@@ -74,26 +74,4 @@ export const fsShim = {
   _watcherClient: watcherClient,
   _registerReadTransform: registerReadTransform,
   _removeReadTransform: removeReadTransform,
-
-  async _init(basePath) {
-    const tree = await transport.fetchTree(basePath);
-    metadataCache.populate(tree);
-    console.log(`[shim:fs] Initialized with ${metadataCache.size} entries`);
-  },
-
-  async _refreshSubtree(subPath) {
-    const tree = await transport.fetchTree(subPath);
-    const prefix = subPath.replace(/\\/g, "/").replace(/^\/+/, "").replace(/\/+$/, "");
-
-    // Tree keys are relative to subPath, so prefix them to make vault-relative
-    const prefixed = {};
-
-    prefixed[prefix] = { type: "directory" };
-
-    for (const [key, meta] of Object.entries(tree)) {
-      prefixed[prefix + "/" + key] = meta;
-    }
-
-    metadataCache.merge(prefixed);
-  },
 };

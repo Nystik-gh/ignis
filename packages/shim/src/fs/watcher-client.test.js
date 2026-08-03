@@ -1,6 +1,15 @@
-import { describe, it, expect, vi } from "vitest";
+import {
+  describe,
+  it,
+  expect,
+  vi,
+  beforeEach,
+  afterEach,
+} from "vitest";
 import { createWatcherClient } from "./watcher-client.js";
 import { markLocalOp } from "./echo-guard.js";
+
+const RESYNC_DEBOUNCE_MS = 1000;
 
 function makeDeps() {
   const store = new Map();
@@ -21,7 +30,7 @@ function makeDeps() {
   };
 
   const fsWatch = { _dispatch: vi.fn() };
-  const wsClient = { subscribe: vi.fn(), onReconnect: vi.fn() };
+  const wsClient = { subscribe: vi.fn(), onOpen: vi.fn() };
   const transport = { fetchTree: vi.fn() };
 
   const client = createWatcherClient(
@@ -97,5 +106,51 @@ describe("watcher-client reconcile", () => {
 
     expect(d.store.has(p)).toBe(false);
     expect(d.fsWatch._dispatch).not.toHaveBeenCalled();
+  });
+});
+
+describe("watcher-client resync", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  const scheduleResyncOf = (d) => d.wsClient.onOpen.mock.calls[0][0];
+
+  it("skips reconcile when the server reports the tree is not modified", async () => {
+    const d = makeDeps();
+    d.transport.fetchTree.mockResolvedValue({ notModified: true, etag: '"1"' });
+
+    scheduleResyncOf(d)();
+    await vi.advanceTimersByTimeAsync(RESYNC_DEBOUNCE_MS);
+
+    expect(d.transport.fetchTree).toHaveBeenCalledWith(null);
+    expect(d.fsWatch._dispatch).not.toHaveBeenCalled();
+  });
+
+  it("reconciles the tree and sends the stored revision on the next resync", async () => {
+    const d = makeDeps();
+    d.transport.fetchTree
+      .mockResolvedValueOnce({
+        tree: { "fresh.md": { type: "file", size: 3, mtime: 1, ctime: 1 } },
+        etag: '"2"',
+      })
+      .mockResolvedValueOnce({ notModified: true, etag: '"2"' });
+
+    const scheduleResync = scheduleResyncOf(d);
+
+    scheduleResync();
+    await vi.advanceTimersByTimeAsync(RESYNC_DEBOUNCE_MS);
+
+    expect(d.store.get("fresh.md")).toMatchObject({ type: "file", size: 3 });
+    expect(d.fsWatch._dispatch).toHaveBeenCalledWith("created", "fresh.md");
+
+    scheduleResync();
+    await vi.advanceTimersByTimeAsync(RESYNC_DEBOUNCE_MS);
+
+    expect(d.transport.fetchTree).toHaveBeenLastCalledWith('"2"');
   });
 });

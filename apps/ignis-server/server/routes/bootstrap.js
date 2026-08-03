@@ -20,11 +20,15 @@ const { getPending } = writeCoalescer;
 
 const router = express.Router();
 
-// vaultId -> { response, dirMtimes, compressed: { br, gz } }
+// vaultId -> { response, dirMtimes, compressed: { br, gz }, etag }
 const cache = new Map();
 
 // vaultId -> Promise<entry>  (in-flight build dedup)
 const pendingBuilds = new Map();
+
+// The nonce keeps /tree ETags from repeating across server restarts.
+const bootNonce = require("crypto").randomBytes(6).toString("hex");
+let revisionCounter = 0;
 
 function preCompress(buf) {
   return Promise.all([
@@ -149,6 +153,7 @@ async function buildEntry(vaultId) {
   }
 
   const t0 = Date.now();
+  const etag = '"' + bootNonce + "-" + ++revisionCounter + '"';
   const vault = buildVaultInfo(vaultId, vaultPath);
   const { tree, dirMtimes } = await walkTree(vaultPath);
 
@@ -156,6 +161,7 @@ async function buildEntry(vaultId) {
     vault,
     vaultList: buildVaultList(),
     tree,
+    treeRevision: etag,
     // In demo mode, hide server-side plugins from the client.
     plugins: config.demoMode ? [] : getDiscoveredPlugins(),
     virtualPlugins: getVirtualPluginsForVault(vaultId, getVersion()),
@@ -176,7 +182,7 @@ async function buildEntry(vaultId) {
     console.warn("[bootstrap] precompression failed:", e.message);
   }
 
-  const entry = { response, dirMtimes, compressed };
+  const entry = { response, dirMtimes, compressed, etag };
   cache.set(vaultId, entry);
 
   const ms = Date.now() - t0;

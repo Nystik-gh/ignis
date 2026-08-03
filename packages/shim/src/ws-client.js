@@ -8,14 +8,13 @@ export function createWsClient() {
   let vaultId = null;
   let reconnectTimer = null;
   let manuallyClosed = false;
-  let hasConnectedBefore = false;
   let state = "closed"; // "closed" | "connecting" | "open"
 
   const globalSubs = new Map(); // type -> Set<handler>
   const channelSubs = new Map(); // channelName -> Map<type, Set<handler>>
   const channelSubCount = new Map(); // channelName -> integer
   const stateSubs = new Set(); // handler(state)
-  const reconnectSubs = new Set(); // handler() fired on a re-open, not the first open
+  const openSubs = new Set(); // handler() fired on each socket open
 
   function setState(next) {
     if (state === next) {
@@ -110,18 +109,12 @@ export function createWsClient() {
         sendSubscribeChannel(name);
       }
 
-      // A re-open can miss watcher events that fired while the socket was down.
-      // Boot covers the first open, so handlers fire only on later opens.
-      if (hasConnectedBefore) {
-        for (const fn of reconnectSubs) {
-          try {
-            fn();
-          } catch (e) {
-            console.error("[ws] reconnect subscriber threw:", e);
-          }
+      for (const fn of openSubs) {
+        try {
+          fn();
+        } catch (e) {
+          console.error("[ws] open subscriber threw:", e);
         }
-      } else {
-        hasConnectedBefore = true;
       }
     };
 
@@ -268,11 +261,11 @@ export function createWsClient() {
     };
   }
 
-  function onReconnect(handler) {
-    reconnectSubs.add(handler);
+  function onOpen(handler) {
+    openSubs.add(handler);
 
     return () => {
-      reconnectSubs.delete(handler);
+      openSubs.delete(handler);
     };
   }
 
@@ -284,7 +277,7 @@ export function createWsClient() {
     channel,
     isOpen,
     onStateChange,
-    onReconnect,
+    onOpen,
   };
 }
 

@@ -194,16 +194,6 @@ describe("tree route root responses come from the bootstrap cache", () => {
     expect(tree["seed.md"]).toMatchObject({ type: "file" });
   });
 
-  it("returns only the requested subtree when a path is given", async () => {
-    await mkdir("sub");
-    await writeFile("sub/inner.md", "inner");
-    await writeFile("outer.md", "outer");
-
-    const tree = await getTree(q("sub"));
-
-    expect(Object.keys(tree)).toEqual(["inner.md"]);
-  });
-
   it("serves two concurrent root requests from one build", async () => {
     await writeFile("dedup.md", "x");
 
@@ -225,6 +215,56 @@ describe("tree route root responses come from the bootstrap cache", () => {
     expect(first["dedup.md"]).toMatchObject({ type: "file" });
     expect(second).toEqual(first);
     expect(logs.filter((l) => l.includes("[bootstrap]"))).toHaveLength(1);
+  });
+});
+
+describe("tree route conditional fetch via ETag", () => {
+  const getTree = (query, headers) =>
+    fetch(u(`tree?${query}`), headers ? { headers } : undefined);
+
+  it("returns an ETag header on the root tree", async () => {
+    await writeFile("etag-seed.md", "hi");
+
+    const res = await getTree(`vault=${VAULT_ID}`);
+
+    expect(res.status).toBe(200);
+    expect(res.headers.get("etag")).toBeTruthy();
+  });
+
+  it("returns 304 with an empty body when If-None-Match matches", async () => {
+    await writeFile("etag-match.md", "hi");
+
+    const first = await getTree(`vault=${VAULT_ID}`);
+    const etag = first.headers.get("etag");
+    await first.json();
+
+    const second = await getTree(`vault=${VAULT_ID}`, {
+      "If-None-Match": etag,
+    });
+
+    expect(second.status).toBe(304);
+    expect(second.headers.get("etag")).toBe(etag);
+    expect(await second.text()).toBe("");
+  });
+
+  it("serves 200 with the new file and a changed ETag after a write", async () => {
+    await writeFile("base.md", "hi");
+
+    const first = await getTree(`vault=${VAULT_ID}`);
+    const oldEtag = first.headers.get("etag");
+    await first.json();
+
+    await writeFile("added.md", "new");
+
+    const second = await getTree(`vault=${VAULT_ID}`, {
+      "If-None-Match": oldEtag,
+    });
+    const tree = await second.json();
+    const newEtag = second.headers.get("etag");
+
+    expect(second.status).toBe(200);
+    expect(tree["added.md"]).toMatchObject({ type: "file" });
+    expect(newEtag).not.toBe(oldEtag);
   });
 });
 

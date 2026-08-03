@@ -255,6 +255,7 @@ export function initialize() {
     window.__vaultList = bootstrap.vaultList;
     autoTrustDemoVaults(bootstrap.vaultList);
     applyTree(bootstrap.tree);
+    fsShim._watcherClient.setTreeRevision(bootstrap.treeRevision);
     applyCoreSyncGuard(bootstrap.plugins);
     bootstrapVirtualPlugins = bootstrap.virtualPlugins || [];
     applyServerSettings(bootstrap.settings);

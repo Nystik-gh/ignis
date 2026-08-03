@@ -108,39 +108,6 @@ router.get("/stat", async (req, res) => {
   }
 });
 
-// GET /api/fs/readdir?path=...
-router.get("/readdir", async (req, res) => {
-  const resolved = guardPath(req, res);
-
-  if (!resolved) {
-    return;
-  }
-
-  try {
-    // Check if path is a file. return ENOTDIR instead of crashing
-    const stat = await fs.promises.stat(resolved);
-
-    if (!stat.isDirectory()) {
-      return res
-        .status(400)
-        .json({ error: "ENOTDIR: not a directory", code: "ENOTDIR" });
-    }
-
-    const entries = await fs.promises.readdir(resolved, {
-      withFileTypes: true,
-    });
-
-    res.json(
-      entries.map((e) => ({
-        name: e.name,
-        type: e.isDirectory() ? "directory" : "file",
-      })),
-    );
-  } catch (e) {
-    res.status(e.code === "ENOENT" ? 404 : 500).json(sanitizeError(e));
-  }
-});
-
 // GET /api/fs/readFile?path=...&encoding=...
 router.get("/readFile", async (req, res) => {
   const resolved = guardPath(req, res);
@@ -486,7 +453,7 @@ router.post("/batch-read", async (req, res) => {
   res.json({ files });
 });
 
-// GET /api/fs/tree?path=...&vault=... returns full recursive file tree with metadata
+// GET /api/fs/tree?vault=... returns the full recursive file tree with metadata
 router.get("/tree", async (req, res) => {
   const vaultRoot = getVaultRoot(req, res);
 
@@ -494,82 +461,27 @@ router.get("/tree", async (req, res) => {
     return;
   }
 
-  const rootPath = req.query.path
-    ? resolveVaultPath(vaultRoot, req.query.path)
-    : vaultRoot;
-
-  if (!rootPath) {
-    return res.status(403).json({ error: "Invalid path" });
-  }
-
   try {
-    if (!req.query.path) {
-      // grab the tree from the bootstrap cache.
-      const entry = await bootstrapRoutes.getOrBuild(req._vaultId);
+    // grab the tree from the bootstrap cache.
+    const entry = await bootstrapRoutes.getOrBuild(req._vaultId);
 
-      if (!entry) {
-        return res.status(404).json({ error: "Vault not found" });
-      }
-
-      res.setHeader("Cache-Control", "no-store");
-
-      // The demo response rewriter mutates in place.
-      if (req._demoSessionId) {
-        return res.json(JSON.parse(JSON.stringify(entry.response.tree)));
-      }
-
-      return res.json(entry.response.tree);
+    if (!entry) {
+      return res.status(404).json({ error: "Vault not found" });
     }
 
-    const tree = {};
-
-    async function walk(dir, prefix) {
-      const entries = await fs.promises.readdir(dir, {
-        withFileTypes: true,
-      });
-
-      for (const entry of entries) {
-        const rel = prefix ? prefix + "/" + entry.name : entry.name;
-        const full = path.join(dir, entry.name);
-
-        if (entry.isDirectory()) {
-          tree[rel] = { type: "directory" };
-
-          await walk(full, rel);
-        } else {
-          const buffered = getPending(full);
-
-          if (buffered) {
-            const stat = await fs.promises.stat(full).catch(() => null);
-            const size = Buffer.isBuffer(buffered.data)
-              ? buffered.data.length
-              : Buffer.byteLength(buffered.data, buffered.encoding || "utf-8");
-
-            tree[rel] = {
-              type: "file",
-              size,
-              mtime: Date.now(),
-              ctime: stat ? stat.ctimeMs : Date.now(),
-            };
-          } else {
-            const stat = await fs.promises.stat(full);
-
-            tree[rel] = {
-              type: "file",
-              size: stat.size,
-              mtime: stat.mtimeMs,
-              ctime: stat.ctimeMs,
-            };
-          }
-        }
-      }
-    }
-
-    await walk(rootPath, "");
-
-    // don't cache the tree response.
     res.setHeader("Cache-Control", "no-store");
-    res.json(tree);
+    res.setHeader("ETag", entry.etag);
+
+    if (req.headers["if-none-match"] === entry.etag) {
+      return res.status(304).end();
+    }
+
+    // The demo response rewriter mutates in place.
+    if (req._demoSessionId) {
+      return res.json(JSON.parse(JSON.stringify(entry.response.tree)));
+    }
+
+    res.json(entry.response.tree);
   } catch (e) {
     res.status(500).json(sanitizeError(e));
   }

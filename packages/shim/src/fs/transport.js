@@ -31,7 +31,7 @@ function withinKeepaliveCap(body) {
   return new TextEncoder().encode(body).length <= KEEPALIVE_MAX_BYTES;
 }
 
-async function request(method, endpoint, params = {}) {
+async function request(method, endpoint, params = {}, headers) {
   const url = new URL(API_BASE + endpoint, window.location.origin);
 
   const options = { method };
@@ -49,13 +49,18 @@ async function request(method, endpoint, params = {}) {
     options.body = JSON.stringify({ vault: vaultId(), ...params });
   }
 
+  if (headers) {
+    options.headers = { ...options.headers, ...headers };
+  }
+
   // A write (POST/DELETE) opts into keepalive so a page dismissal does not drop it.
   if (method !== "GET" && withinKeepaliveCap(options.body)) {
     options.keepalive = true;
   }
 
   const res = await fetch(url.toString(), options);
-  if (!res.ok) {
+  // A 304 is a valid conditional response.
+  if (!res.ok && res.status !== 304) {
     const err = await res
       .json()
       .catch(() => ({ error: res.statusText, code: "UNKNOWN" }));
@@ -114,16 +119,19 @@ function requestSync(method, endpoint, params = {}) {
 }
 
 export const transport = {
-  async fetchTree(basePath) {
-    return requestJson("GET", "/tree", basePath ? { path: basePath } : {});
+  async fetchTree(etag) {
+    const headers = etag ? { "If-None-Match": etag } : undefined;
+    const res = await request("GET", "/tree", {}, headers);
+
+    if (res.status === 304) {
+      return { notModified: true, etag: res.headers.get("ETag") };
+    }
+
+    return { tree: await res.json(), etag: res.headers.get("ETag") };
   },
 
   async stat(path) {
     return requestJson("GET", "/stat", { path: normPath(path) });
-  },
-
-  async readdir(path) {
-    return requestJson("GET", "/readdir", { path: normPath(path) });
   },
 
   async readFile(path, encoding) {

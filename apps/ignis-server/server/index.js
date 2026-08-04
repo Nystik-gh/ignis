@@ -223,6 +223,9 @@ const wss = setupWebSocket(server, {
 });
 wireDemoWebSocket(server);
 
+// Invalidate stored tree on any file change.
+watcher.addGlobalListener((vaultId) => bootstrapRoutes.invalidateVault(vaultId));
+
 async function gracefulShutdown(signal) {
   console.log(`\n[ignis] Received ${signal}, shutting down gracefully...`);
 

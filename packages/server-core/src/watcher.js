@@ -6,6 +6,9 @@ const fs = require("fs");
 // Map<vaultId, { watcher, listeners: Set<fn>, vaultPath }>
 const vaultWatchers = new Map();
 
+// Set<fn(vaultId, event)>, fired for events on all vaults
+const globalListeners = new Set();
+
 function startWatching(vaultId, vaultPath) {
   if (vaultWatchers.has(vaultId)) {
     return vaultWatchers.get(vaultId);
@@ -43,6 +46,14 @@ function startWatching(vaultId, vaultPath) {
         fn(event);
       } catch (e) {
         console.error("[watcher] Listener error:", e);
+      }
+    }
+
+    for (const fn of globalListeners) {
+      try {
+        fn(vaultId, event);
+      } catch (e) {
+        console.error("[watcher] Global listener error:", e);
       }
     }
   }
@@ -96,6 +107,14 @@ function stopWatching(vaultId) {
   }
 }
 
+function addGlobalListener(fn) {
+  globalListeners.add(fn);
+}
+
+function removeGlobalListener(fn) {
+  globalListeners.delete(fn);
+}
+
 function addListener(vaultId, fn) {
   const entry = vaultWatchers.get(vaultId);
 
@@ -117,4 +136,11 @@ function removeListener(vaultId, fn) {
   }
 }
 
-module.exports = { startWatching, stopWatching, addListener, removeListener };
+module.exports = {
+  startWatching,
+  stopWatching,
+  addListener,
+  removeListener,
+  addGlobalListener,
+  removeGlobalListener,
+};

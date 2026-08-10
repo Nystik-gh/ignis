@@ -10,6 +10,7 @@ const {
   setupWebSocket,
   watcher,
   writeCoalescer,
+  resolveVaultPath,
 } = require("@ignis/server-core");
 const {
   BRIDGE_PLUGIN_ID,
@@ -113,6 +114,32 @@ app.use("/vault-files", (req, res, next) => {
     return res.status(404).json({ error: "Vault not found" });
   }
 
+  let resolved = null;
+
+  try {
+    const relPath = parts.slice(1).map(decodeURIComponent).join("/");
+    resolved = relPath ? resolveVaultPath(vaultPath, relPath) : null;
+  } catch {
+    // resolved stays null and gets handled by static handler
+  }
+
+  const buffered = resolved ? writeCoalescer.getPending(resolved) : null;
+
+  // Serve buffered content if exists.
+  if (buffered) {
+    const body = Buffer.isBuffer(buffered.data)
+      ? buffered.data
+      : Buffer.from(buffered.data, buffered.encoding || "utf-8");
+
+    const ext = path.extname(resolved);
+
+    if (ext) {
+      res.type(ext);
+    }
+
+    return res.send(body);
+  }
+
   // Rewrite req.url to strip the vault ID prefix, then serve statically
   req.url = "/" + parts.slice(1).join("/");
   express.static(vaultPath)(req, res, next);
@@ -150,7 +177,10 @@ function buildIndexHtml() {
 
   html = html.replace("__IGNIS_UI_SRC__", `ignis-ui.js?v=${version}`);
   html = html.replace("__SHIM_LOADER_SRC__", `shim-loader.js?v=${version}`);
-  html = html.replace("__APP_CSS_SRC__", versionedSrc("app.css", obsidianVersion));
+  html = html.replace(
+    "__APP_CSS_SRC__",
+    versionedSrc("app.css", obsidianVersion),
+  );
   html = html.replace(
     "__OBSIDIAN_SCRIPTS__",
     JSON.stringify(scripts.map((s) => versionedSrc(s, obsidianVersion))),
@@ -224,7 +254,34 @@ const wss = setupWebSocket(server, {
 wireDemoWebSocket(server);
 
 // Invalidate stored tree on any file change.
-watcher.addGlobalListener((vaultId) => bootstrapRoutes.invalidateVault(vaultId));
+watcher.addGlobalListener((vaultId) =>
+  bootstrapRoutes.invalidateVault(vaultId),
+);
+
+function vaultForPath(absPath) {
+  const target = path.resolve(absPath);
+
+  for (const [vaultId, vaultPath] of Object.entries(config.vaults)) {
+    const base = path.resolve(vaultPath);
+
+    if (target === base || target.startsWith(base + path.sep)) {
+      return { vaultId, base };
+    }
+  }
+
+  return null;
+}
+
+writeCoalescer.onFlushGiveUp((absPath) => {
+  const match = vaultForPath(absPath);
+
+  if (!match) {
+    return;
+  }
+
+  const rel = path.relative(match.base, absPath).split(path.sep).join("/");
+  wss.broadcastToVault(match.vaultId, { type: "write-giveup", path: rel });
+});
 
 async function gracefulShutdown(signal) {
   console.log(`\n[ignis] Received ${signal}, shutting down gracefully...`);

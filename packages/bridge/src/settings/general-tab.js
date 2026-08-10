@@ -265,7 +265,7 @@ function renderServerSettings(containerEl, current, app) {
 
   numberField(advanced, {
     name: "Write coalesce window (ms)",
-    desc: "Debounce window for rapid writes on slow filesystems. 0 disables.",
+    desc: "Debounce window for rapid writes on slow filesystems. 0 disables. Maximum 60000.",
     value: current.writeCoalesceMs,
     key: "writeCoalesceMs",
     toStored: (n) => n,

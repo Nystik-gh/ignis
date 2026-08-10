@@ -33,6 +33,9 @@ const ENV_ONLY_KEYS = ["wsOrigins", "proxyAllowPrivate"];
 // Hard ceiling for request bodies.
 const MAX_BODY_BACKSTOP = 500 * 1024 * 1024;
 
+// Hard ceiling for the coalesce window.
+const MAX_WRITE_COALESCE_MS = 60000;
+
 function parseList(raw) {
   return raw
     .split(",")
@@ -116,6 +119,7 @@ module.exports = {
   ENV_ONLY_KEYS,
   PROXY_MODES,
   MAX_BODY_BACKSTOP,
+  MAX_WRITE_COALESCE_MS,
   getAll,
   get,
   update,

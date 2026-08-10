@@ -44,6 +44,12 @@ function validate(body) {
       );
     }
 
+    if (key === "writeCoalesceMs" && n > settings.MAX_WRITE_COALESCE_MS) {
+      throw new Error(
+        `writeCoalesceMs must be between 0 and ${settings.MAX_WRITE_COALESCE_MS}`,
+      );
+    }
+
     clean[key] = n;
   }
 

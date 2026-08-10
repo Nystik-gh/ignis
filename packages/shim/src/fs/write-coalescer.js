@@ -32,7 +32,7 @@ export function initWriteCoalescer(t) {
 
   listenersBound = true;
 
-  // Deliver buffered writes if the tab is closed or hidden mid-boot.
+  // Commit buffered writes on pagehide.
   window.addEventListener("pagehide", flushAll);
 
   if (typeof document !== "undefined" && document.addEventListener) {

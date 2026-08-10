@@ -75,6 +75,15 @@ if (window.__currentVaultId) {
   watchPluginToggles(wsClient);
 }
 
+wsClient.subscribe("write-giveup", (msg) => {
+  // evict the lost write from the content cache.
+  fsShim.invalidate(msg.path);
+
+  window.dispatchEvent(
+    new CustomEvent("ignis:write-giveup", { detail: { path: msg.path } }),
+  );
+});
+
 extractObsidianModule()
   .then(async () => {
     // window.app exists once Obsidian's module is extracted.

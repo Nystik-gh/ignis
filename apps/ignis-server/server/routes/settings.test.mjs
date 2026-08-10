@@ -26,6 +26,15 @@ describe("settings validate", () => {
     });
   });
 
+  it("enforces the writeCoalesceMs ceiling", () => {
+    expect(() =>
+      validate({ writeCoalesceMs: settings.MAX_WRITE_COALESCE_MS + 1 }),
+    ).toThrow();
+    expect(validate({ writeCoalesceMs: 5000 })).toEqual({
+      writeCoalesceMs: 5000,
+    });
+  });
+
   it("trims a valid proxy allowlist", () => {
     expect(
       validate({ proxyAllowlist: [" api.example.com ", "github.com"] }),

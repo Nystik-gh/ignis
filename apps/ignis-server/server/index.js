@@ -192,6 +192,10 @@ app.use((req, res, next) => {
 app.use(express.static(path.join(REPO_ROOT, "packages", "ui", "dist")));
 app.use(express.static(path.join(REPO_ROOT, "packages", "shim", "dist")));
 
+// PWA assets (manifest, service worker, icons) served at the origin root so
+// the service worker scope covers the whole app.
+app.use(express.static(path.join(__dirname, "assets", "pwa")));
+
 app.use(express.static(config.obsidianAssetsPath));
 
 const server = app.listen(config.port, async () => {

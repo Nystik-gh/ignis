@@ -4,6 +4,11 @@
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover"/>
   <title>Obsidian</title>
+  <link rel="manifest" href="/manifest.webmanifest"/>
+  <meta name="theme-color" content="#202020"/>
+  <meta name="apple-mobile-web-app-capable" content="yes"/>
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png"/>
   <link href="__APP_CSS_SRC__" type="text/css" rel="stylesheet"/>
   <link rel="icon" type="image/png" href="favicon.png"/>
   <link href="assets/overrides.css" type="text/css" rel="stylesheet"/>
@@ -40,6 +45,16 @@
   <img src="favicon.png" alt=""/>
   <div id="ignis-status-label">Loading Obsidian...</div>
 </div>
+<!-- Register the service worker for offline-capable app shell caching. -->
+<script>
+  if ("serviceWorker" in navigator) {
+    window.addEventListener("load", function () {
+      navigator.serviceWorker.register("/sw.js").catch(function (err) {
+        console.warn("[ignis] Service worker registration failed:", err);
+      });
+    });
+  }
+</script>
 <!-- Ignis shims: must run before any Obsidian code. -->
 <script type="text/javascript" src="__SHIM_LOADER_SRC__"></script>
 <script type="text/javascript" src="__IGNIS_UI_SRC__"></script>

@@ -31,7 +31,7 @@ async function cleanupSession(sessionId) {
     }
 
     try {
-      watcher.stopWatching(storageName);
+      await watcher.stopWatching(storageName);
     } catch {}
 
     try {

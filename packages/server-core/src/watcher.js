@@ -2,16 +2,30 @@ const chokidar = require("chokidar");
 const path = require("path");
 const fs = require("fs");
 
+// Idle window before a watcher with no listeners stops.
+const IDLE_STOP_MS = 10 * 60 * 1000;
+
+let idleStopMs = IDLE_STOP_MS;
+
 // Per-vault chokidar watchers
-// Map<vaultId, { watcher, listeners: Set<fn>, vaultPath }>
+// Map<vaultId, { watcher, listeners: Set<fn>, vaultPath, idleTimer }>
 const vaultWatchers = new Map();
 
 // Set<fn(vaultId, event)>, fired for events on all vaults
 const globalListeners = new Set();
 
+function cancelIdleStop(entry) {
+  clearTimeout(entry.idleTimer);
+  entry.idleTimer = null;
+}
+
 function startWatching(vaultId, vaultPath) {
-  if (vaultWatchers.has(vaultId)) {
-    return vaultWatchers.get(vaultId);
+  const existing = vaultWatchers.get(vaultId);
+
+  if (existing) {
+    cancelIdleStop(existing);
+
+    return existing;
   }
 
   const watcher = chokidar.watch(vaultPath, {
@@ -26,7 +40,7 @@ function startWatching(vaultId, vaultPath) {
     ],
   });
 
-  const entry = { watcher, listeners: new Set(), vaultPath };
+  const entry = { watcher, listeners: new Set(), vaultPath, idleTimer: null };
 
   function emit(type, fullPath, stat) {
     const rel = path.relative(vaultPath, fullPath).replace(/\\/g, "/");
@@ -99,12 +113,18 @@ function startWatching(vaultId, vaultPath) {
 function stopWatching(vaultId) {
   const entry = vaultWatchers.get(vaultId);
 
-  if (entry) {
-    entry.watcher.close();
-    entry.listeners.clear();
-    vaultWatchers.delete(vaultId);
-    console.log(`[watcher] Stopped watching vault: ${vaultId}`);
+  if (!entry) {
+    return;
   }
+
+  cancelIdleStop(entry);
+  entry.listeners.clear();
+  vaultWatchers.delete(vaultId);
+  console.log(`[watcher] Stopped watching vault: ${vaultId}`);
+
+  return entry.watcher.close().catch((e) => {
+    console.error(`[watcher] Close failed on vault "${vaultId}":`, e.message);
+  });
 }
 
 function addGlobalListener(fn) {
@@ -119,6 +139,7 @@ function addListener(vaultId, fn) {
   const entry = vaultWatchers.get(vaultId);
 
   if (entry) {
+    cancelIdleStop(entry);
     entry.listeners.add(fn);
   }
 }
@@ -129,11 +150,24 @@ function removeListener(vaultId, fn) {
   if (entry) {
     entry.listeners.delete(fn);
 
-    // Stop watching if no listeners remain
     if (entry.listeners.size === 0) {
-      stopWatching(vaultId);
+      clearTimeout(entry.idleTimer);
+      entry.idleTimer = setTimeout(() => stopWatching(vaultId), idleStopMs);
     }
   }
+}
+
+// Test-only.
+function _setIdleStopMs(ms) {
+  idleStopMs = ms ?? IDLE_STOP_MS;
+}
+
+function _reset() {
+  for (const vaultId of vaultWatchers.keys()) {
+    stopWatching(vaultId);
+  }
+
+  globalListeners.clear();
 }
 
 module.exports = {
@@ -143,4 +177,6 @@ module.exports = {
   removeListener,
   addGlobalListener,
   removeGlobalListener,
+  _setIdleStopMs,
+  _reset,
 };

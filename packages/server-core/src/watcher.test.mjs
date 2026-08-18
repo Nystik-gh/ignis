@@ -22,8 +22,7 @@ afterEach(async () => {
     globalListener = null;
   }
 
-  await watcher.stopWatching(VAULT_ID);
-  watcher._reset();
+  await watcher._reset();
   watcher._setIdleStopMs(null);
 
   if (tmpDir) {
@@ -149,8 +148,18 @@ describe("watcher idle stop", () => {
     await expect(watcher.stopWatching(VAULT_ID)).resolves.toBeUndefined();
 
     const restarted = watcher.startWatching(VAULT_ID, tmpDir);
+    watcher.addListener(VAULT_ID, () => {});
     await sleep(IDLE_MS + 500);
 
     expect(watcher.startWatching(VAULT_ID, tmpDir)).toBe(restarted);
+  }, 20000);
+
+  it("stops a watcher that never has a listener", async () => {
+    tmpDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), "watch-test-"));
+
+    watcher.startWatching(VAULT_ID, tmpDir);
+    await sleep(IDLE_MS + 500);
+
+    expect(watcher.stopWatching(VAULT_ID)).toBeUndefined();
   }, 20000);
 });

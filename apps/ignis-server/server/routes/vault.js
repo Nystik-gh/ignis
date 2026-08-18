@@ -3,6 +3,7 @@ const fs = require("fs");
 const config = require("../config");
 const path = require("path");
 const bootstrapRoutes = require("./bootstrap");
+const { withWatcherStopped } = require("../vault-lifecycle");
 const { sanitizeError } = require("@ignis/server-core");
 
 const router = express.Router();
@@ -101,10 +102,21 @@ router.post("/rename", async (req, res) => {
     return res.status(404).json({ error: "Vault not found" });
   }
 
+  if (
+    newName !== vaultId &&
+    Object.prototype.hasOwnProperty.call(config.vaults, newName)
+  ) {
+    return res
+      .status(409)
+      .json({ error: `A vault with name: ${newName} already exists` });
+  }
+
   const newPath = path.join(config.vaultRoot, newName);
 
   try {
-    await fs.promises.rename(vaultPath, newPath);
+    await withWatcherStopped(vaultId, vaultPath, () =>
+      fs.promises.rename(vaultPath, newPath),
+    );
 
     config.refreshVaults();
     bootstrapRoutes.invalidateVault(vaultId);
@@ -115,7 +127,7 @@ router.post("/rename", async (req, res) => {
     if (e.code === "ENOTEMPTY" || e.code === "EEXIST") {
       return res
         .status(409)
-        .json({ error: "A vault with that name already exists" });
+        .json({ error: `A vault with name: ${newName} already exists` });
     }
 
     res.status(500).json(sanitizeError(e));
@@ -132,7 +144,9 @@ router.delete("/remove", async (req, res) => {
   }
 
   try {
-    await fs.promises.rm(vaultPath, { recursive: true });
+    await withWatcherStopped(vaultId, vaultPath, () =>
+      fs.promises.rm(vaultPath, { recursive: true, force: true }),
+    );
 
     config.refreshVaults();
     bootstrapRoutes.invalidateVault(vaultId);

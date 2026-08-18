@@ -82,6 +82,7 @@ const proxyRoutes = require("./routes/proxy");
 const versionRoutes = require("./routes/version");
 const settingsRoutes = require("./routes/settings");
 const bootstrapRoutes = require("./routes/bootstrap");
+const vaultLifecycle = require("./vault-lifecycle");
 
 app.use("/assets", express.static(path.join(__dirname, "assets")));
 
@@ -251,6 +252,7 @@ const wss = setupWebSocket(server, {
   getVaultPath: config.getVaultPath,
   originAllowlist: settings.get("wsOrigins"),
 });
+vaultLifecycle.setWss(wss);
 wireDemoWebSocket(server);
 
 // Invalidate stored tree on any file change.

@@ -105,6 +105,7 @@ function startWatching(vaultId, vaultPath) {
     });
 
   vaultWatchers.set(vaultId, entry);
+  entry.idleTimer = setTimeout(() => stopWatching(vaultId), idleStopMs);
   console.log(`[watcher] Started watching vault: ${vaultId}`);
 
   return entry;
@@ -163,11 +164,15 @@ function _setIdleStopMs(ms) {
 }
 
 function _reset() {
+  const closings = [];
+
   for (const vaultId of vaultWatchers.keys()) {
-    stopWatching(vaultId);
+    closings.push(stopWatching(vaultId));
   }
 
   globalListeners.clear();
+
+  return Promise.all(closings);
 }
 
 module.exports = {

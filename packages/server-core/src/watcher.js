@@ -8,7 +8,7 @@ const IDLE_STOP_MS = 10 * 60 * 1000;
 let idleStopMs = IDLE_STOP_MS;
 
 // Per-vault chokidar watchers
-// Map<vaultId, { watcher, listeners: Set<fn>, vaultPath, idleTimer }>
+// Map<vaultId, { watcher, listeners: Set<fn>, vaultPath, idleTimer, ready, errorCount, firstError, enospc }>
 const vaultWatchers = new Map();
 
 // Set<fn(vaultId, event)>, fired for events on all vaults
@@ -17,6 +17,13 @@ const globalListeners = new Set();
 function cancelIdleStop(entry) {
   clearTimeout(entry.idleTimer);
   entry.idleTimer = null;
+}
+
+function countTrackedPaths(watchedDirs) {
+  return Object.values(watchedDirs).reduce(
+    (acc, names) => acc + names.length,
+    0,
+  );
 }
 
 function startWatching(vaultId, vaultPath) {
@@ -40,7 +47,16 @@ function startWatching(vaultId, vaultPath) {
     ],
   });
 
-  const entry = { watcher, listeners: new Set(), vaultPath, idleTimer: null };
+  const entry = {
+    watcher,
+    listeners: new Set(),
+    vaultPath,
+    idleTimer: null,
+    ready: false,
+    errorCount: 0,
+    firstError: null,
+    enospc: false,
+  };
 
   function emit(type, fullPath, stat) {
     const rel = path.relative(vaultPath, fullPath).replace(/\\/g, "/");
@@ -101,7 +117,46 @@ function startWatching(vaultId, vaultPath) {
       emit("deleted", fullPath, null);
     })
     .on("error", (err) => {
-      console.error(`[watcher] Error on vault "${vaultId}":`, err.message);
+      if (entry.ready) {
+        console.error(`[watcher] Error on vault "${vaultId}":`, err.message);
+
+        return;
+      }
+
+      entry.errorCount++;
+      entry.enospc = entry.enospc || err.code === "ENOSPC";
+
+      if (entry.errorCount === 1) {
+        entry.firstError = {
+          message: err.message,
+          code: err.code,
+          path: err.path,
+        };
+
+        console.error(
+          `[watcher] Error on vault "${vaultId}"${err.path ? ` at ${err.path}` : ""}:`,
+          err.message,
+        );
+      }
+    })
+    .on("ready", () => {
+      entry.ready = true;
+
+      const tracked = countTrackedPaths(watcher.getWatched());
+
+      if (entry.errorCount === 0) {
+        console.log(
+          `[watcher] Ready on vault "${vaultId}": ${tracked} paths tracked`,
+        );
+
+        return;
+      }
+
+      const hint = entry.enospc ? " Raise fs.inotify.max_user_watches." : "";
+
+      console.warn(
+        `[watcher] Ready on vault "${vaultId}": ${tracked} paths tracked, ${entry.errorCount} errors, ~${tracked - entry.errorCount} watched.${hint}`,
+      );
     });
 
   vaultWatchers.set(vaultId, entry);

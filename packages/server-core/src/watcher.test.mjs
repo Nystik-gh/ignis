@@ -17,6 +17,8 @@ function sleep(ms) {
 }
 
 afterEach(async () => {
+  vi.restoreAllMocks();
+
   if (globalListener) {
     watcher.removeGlobalListener(globalListener);
     globalListener = null;
@@ -162,4 +164,103 @@ describe("watcher idle stop", () => {
 
     expect(watcher.stopWatching(VAULT_ID)).toBeUndefined();
   }, 20000);
+});
+
+function watchError(message, extra) {
+  return Object.assign(new Error(message), extra);
+}
+
+function whenReady(entry) {
+  return new Promise((resolve) => entry.watcher.on("ready", resolve));
+}
+
+async function makeVaultDir(fileCount) {
+  tmpDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), "watch-test-"));
+
+  for (let i = 0; i < fileCount; i++) {
+    await fs.promises.writeFile(path.join(tmpDir, `f${i}.md`), "x");
+  }
+
+  return tmpDir;
+}
+
+describe("watcher scan errors", () => {
+  it("logs the first error once and totals the rest on the ready line", async () => {
+    await makeVaultDir(5);
+
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    const entry = watcher.startWatching(VAULT_ID, tmpDir);
+    const ready = whenReady(entry);
+
+    for (let i = 0; i < 3; i++) {
+      entry.watcher.emit(
+        "error",
+        watchError("EPERM: operation not permitted, watch", {
+          code: "EPERM",
+          path: path.join(tmpDir, `f${i}.md`),
+        }),
+      );
+    }
+
+    await ready;
+
+    expect(errorSpy).toHaveBeenCalledTimes(1);
+    expect(errorSpy.mock.calls[0].join(" ")).toContain("f0.md");
+    expect(entry.errorCount).toBe(3);
+    expect(entry.firstError).toMatchObject({ code: "EPERM" });
+
+    expect(warnSpy).toHaveBeenCalledTimes(1);
+
+    const line = warnSpy.mock.calls[0].join(" ");
+    const counts = line.match(
+      /(\d+) paths tracked, (\d+) errors, ~(-?\d+) watched/,
+    );
+
+    expect(counts).not.toBeNull();
+    expect(Number(counts[1])).toBeGreaterThanOrEqual(5);
+    expect(Number(counts[2])).toBe(3);
+    expect(Number(counts[3])).toBe(Number(counts[1]) - 3);
+  });
+
+  it("names the inotify limit when a scan error is ENOSPC", async () => {
+    await makeVaultDir(2);
+
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    const entry = watcher.startWatching(VAULT_ID, tmpDir);
+    const ready = whenReady(entry);
+
+    entry.watcher.emit(
+      "error",
+      watchError("ENOSPC: System limit for number of file watchers reached", {
+        code: "ENOSPC",
+        path: tmpDir,
+      }),
+    );
+
+    await ready;
+
+    expect(warnSpy.mock.calls[0].join(" ")).toContain(
+      "fs.inotify.max_user_watches",
+    );
+  });
+
+  it("logs every error that arrives after ready", async () => {
+    await makeVaultDir(1);
+
+    const entry = watcher.startWatching(VAULT_ID, tmpDir);
+
+    await whenReady(entry);
+
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    entry.watcher.emit("error", watchError("late one"));
+    entry.watcher.emit("error", watchError("late two"));
+
+    expect(errorSpy).toHaveBeenCalledTimes(2);
+    expect(entry.errorCount).toBe(0);
+  });
 });

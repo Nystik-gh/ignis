@@ -114,4 +114,20 @@ describe("closeVaultSockets", () => {
   it("does nothing for a vault with no clients", () => {
     expect(() => wss.closeVaultSockets("vault-never-connected")).not.toThrow();
   });
+
+  it("survives a client sending an invalid frame", async () => {
+    const bad = await connect("vault-a");
+    const badClosed = closeCode(bad);
+
+    bad._socket.write(Buffer.from([0xff, 0xff, 0xff, 0xff]));
+    await badClosed;
+
+    const fresh = await connect("vault-a");
+
+    expect(fresh.readyState).toBe(WebSocket.OPEN);
+
+    const freshClosed = closeCode(fresh);
+    fresh.close();
+    await freshClosed;
+  });
 });

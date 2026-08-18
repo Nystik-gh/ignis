@@ -225,6 +225,10 @@ function setupWebSocket(server, opts = {}) {
       }
     });
 
+    ws.on("error", (e) => {
+      console.warn(`[ws] Socket error on vault "${vaultId}":`, e.message);
+    });
+
     ws.on("close", () => {
       console.log(`[ws] Client disconnected from vault: ${vaultId}`);
       watcher.removeListener(vaultId, listener);

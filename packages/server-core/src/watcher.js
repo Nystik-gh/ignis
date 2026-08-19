@@ -1,6 +1,5 @@
 const chokidar = require("chokidar");
 const path = require("path");
-const fs = require("fs");
 
 // Idle window before a watcher with no listeners stops.
 const IDLE_STOP_MS = 10 * 60 * 1000;
@@ -89,21 +88,11 @@ function startWatching(vaultId, vaultPath) {
   }
 
   watcher
-    .on("add", (fullPath) => {
-      try {
-        const stat = fs.statSync(fullPath);
-        emit("created", fullPath, stat);
-      } catch {
-        emit("created", fullPath, null);
-      }
+    .on("add", (fullPath, stats) => {
+      emit("created", fullPath, stats || null);
     })
-    .on("change", (fullPath) => {
-      try {
-        const stat = fs.statSync(fullPath);
-        emit("modified", fullPath, stat);
-      } catch {
-        emit("modified", fullPath, null);
-      }
+    .on("change", (fullPath, stats) => {
+      emit("modified", fullPath, stats || null);
     })
     .on("unlink", (fullPath) => {
       emit("deleted", fullPath, null);

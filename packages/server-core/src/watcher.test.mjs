@@ -52,6 +52,11 @@ describe("watcher global listeners", () => {
 
     expect(events[0].vaultId).toBe(VAULT_ID);
     expect(events[0].event).toMatchObject({ type: "created", path: "a.md" });
+    expect(events[0].event.stat).toMatchObject({
+      size: 1,
+      mtime: expect.any(Number),
+      ctime: expect.any(Number),
+    });
   });
 
   it("stops firing after removeGlobalListener", async () => {

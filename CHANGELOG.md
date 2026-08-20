@@ -2,6 +2,23 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.8.10] - Karm (2026-08-20)
+
+### Changed
+
+- Faster boot: the vault file tree is served from a pre-compressed cache, and the client only resyncs metadata when it has changed.
+- Vault watchers stop after 10 minutes idle instead of on the last disconnect.
+- Improved watcher logs.
+- Write coalescing is more robust. Failed saves show error.
+
+### Fixed
+
+- Images and attachments that fail to load are retried.
+- Vault rename and remove are more reliable.
+- Renaming a vault to an existing name is rejected.
+- Websocket properly handles malformed frames.
+- `Buffer` handles base64, hex, and latin1 encodings correctly.
+
 ## [0.8.9] - Karm (2026-07-30)
 
 ### Added

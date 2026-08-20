@@ -82,6 +82,18 @@ function setupWebSocket(server, opts = {}) {
     }
   };
 
+  wss.closeVaultSockets = function (vaultId) {
+    const clients = clientsByVault.get(vaultId);
+
+    if (!clients) {
+      return;
+    }
+
+    for (const ws of Array.from(clients)) {
+      ws.close(4002, "Vault changed");
+    }
+  };
+
   wss.channel = function (name) {
     return {
       on(type, handler) {
@@ -211,6 +223,10 @@ function setupWebSocket(server, opts = {}) {
           e.message,
         );
       }
+    });
+
+    ws.on("error", (e) => {
+      console.warn(`[ws] Socket error on vault "${vaultId}":`, e.message);
     });
 
     ws.on("close", () => {

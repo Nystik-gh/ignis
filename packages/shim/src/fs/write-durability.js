@@ -12,6 +12,7 @@ const BACKOFF_MS = [1000, 2000, 4000, 8000, 16000, 30000];
 const MAX_ATTEMPTS = 8;
 
 let transport = null;
+let listenersBound = false;
 
 // Retries reuse the same per-path serializer as fresh writes, so a stale retry cannot clobber a newer write.
 let serialize = (path, run) => run();
@@ -35,6 +36,51 @@ export function initWriteDurability(t, serializeFn) {
   if (serializeFn) {
     serialize = serializeFn;
   }
+
+  if (
+    listenersBound ||
+    typeof window === "undefined" ||
+    typeof window.addEventListener !== "function"
+  ) {
+    return;
+  }
+
+  listenersBound = true;
+
+  // Commit queued writes on pagehide.
+  window.addEventListener("pagehide", flushOnUnload);
+
+  if (typeof document !== "undefined" && document.addEventListener) {
+    document.addEventListener("visibilitychange", () => {
+      if (document.visibilityState === "hidden") {
+        flushOnUnload();
+      }
+    });
+  }
+}
+
+// Attempt every queued write.
+function flushOnUnload() {
+  if (!transport) {
+    return;
+  }
+
+  for (const [path, entry] of entries) {
+    if (entry.data === undefined || entry.data === null) {
+      continue;
+    }
+
+    if (entry.status === "retrying") {
+      clearTimeout(entry.retryTimer);
+      attempt(path, entry.gen);
+    } else if (entry.status === "failed") {
+      entry.status = "retrying";
+      entry.attempts = 1;
+      attempt(path, entry.gen);
+    }
+  }
+
+  recompute();
 }
 
 function discard(path) {
@@ -266,7 +312,7 @@ export function onStateChange(handler) {
   };
 }
 
-// Fires the path of each non-silent write that has permanently given up after exhausting its retries.
+// fn(path) runs when a non-silent write gives up permanently.
 export function onFailure(handler) {
   failureSubs.add(handler);
 

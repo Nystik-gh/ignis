@@ -82,13 +82,6 @@ export class MetadataCache {
     return results;
   }
 
-  // Merge entries from a subtree without clearing existing data
-  merge(tree) {
-    for (const [path, meta] of Object.entries(tree)) {
-      this._entries.set(this._normalize(path), meta);
-    }
-  }
-
   get size() {
     return this._entries.size;
   }

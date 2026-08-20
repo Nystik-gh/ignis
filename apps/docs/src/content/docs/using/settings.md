@@ -29,4 +29,4 @@ See [Hardening](/docs/security/hardening/) for what the proxy exposes and why yo
 
 ## Advanced
 
-**Write coalesce window** (default 0, off) debounces rapid writes on slow filesystems such as rclone, NFS, or SMB. The same setting is available as the [`WRITE_COALESCE_MS`](/docs/server/environment/) environment variable.
+**Write coalesce window** (default 0, off) debounces rapid writes on slow filesystems such as rclone, NFS, or SMB. Max 60000. The same setting is available as the [`WRITE_COALESCE_MS`](/docs/server/environment/) environment variable.

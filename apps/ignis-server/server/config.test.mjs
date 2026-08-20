@@ -22,12 +22,16 @@ let root;
 let target;
 let dataRoot;
 
-function loadVaults() {
+function loadConfig() {
   process.env.VAULT_ROOT = root;
   process.env.DATA_ROOT = dataRoot;
   delete process.env.AUTO_CREATE_DEFAULT;
   delete require.cache[CONFIG_ID];
-  return require("./config.js").vaults;
+  return require("./config.js");
+}
+
+function loadVaults() {
+  return loadConfig().vaults;
 }
 
 beforeAll(() => {
@@ -65,5 +69,16 @@ describe("discoverVaults", () => {
 
   it.skipIf(!canSymlink)("skips a dangling symlink", () => {
     expect(Object.keys(loadVaults())).not.toContain("dangling");
+  });
+});
+
+describe("getVaultPath", () => {
+  it("resolves a discovered vault and rejects prototype keys", () => {
+    const config = loadConfig();
+
+    expect(config.getVaultPath("realvault")).toBe(path.join(root, "realvault"));
+    expect(config.getVaultPath("constructor")).toBe(null);
+    expect(config.getVaultPath("hasOwnProperty")).toBe(null);
+    expect(config.getVaultPath("__proto__")).toBe(null);
   });
 });

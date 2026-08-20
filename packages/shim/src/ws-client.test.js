@@ -28,27 +28,27 @@ afterEach(() => {
   delete globalThis.window;
 });
 
-describe("ws-client reconnect", () => {
-  it("fires onReconnect on a re-open but not on the first open", () => {
+describe("ws-client onOpen", () => {
+  it("fires on the first open and again on a re-open", () => {
     const client = createWsClient();
-    const onReconnect = vi.fn();
-    client.onReconnect(onReconnect);
+    const onOpen = vi.fn();
+    client.onOpen(onOpen);
 
     client.connect("v1");
     sockets[0].onopen();
-    expect(onReconnect).not.toHaveBeenCalled();
+    expect(onOpen).toHaveBeenCalledTimes(1);
 
     sockets[0].onclose();
     vi.advanceTimersByTime(2000);
     sockets[1].onopen();
 
-    expect(onReconnect).toHaveBeenCalledTimes(1);
+    expect(onOpen).toHaveBeenCalledTimes(2);
   });
 
   it("stops firing after unsubscribe", () => {
     const client = createWsClient();
-    const onReconnect = vi.fn();
-    const off = client.onReconnect(onReconnect);
+    const onOpen = vi.fn();
+    const off = client.onOpen(onOpen);
 
     client.connect("v1");
     sockets[0].onopen();
@@ -58,6 +58,6 @@ describe("ws-client reconnect", () => {
     vi.advanceTimersByTime(2000);
     sockets[1].onopen();
 
-    expect(onReconnect).not.toHaveBeenCalled();
+    expect(onOpen).toHaveBeenCalledTimes(1);
   });
 });

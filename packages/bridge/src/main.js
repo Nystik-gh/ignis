@@ -16,6 +16,8 @@ import { WorkspacePickerModal } from "./workspace-picker.js";
 import { startDemoGuards, stopDemoGuards } from "./demo-guards.js";
 import { initInsecureApiNotice } from "./insecure-api-notice.js";
 import { initProxyBlockNotice } from "./proxy-block-notice.js";
+import { initWriteGiveupNotice } from "./write-giveup-notice.js";
+import { initImageRetry } from "./image-retry.js";
 
 class IgnisBridgePlugin extends Plugin {
   async onload() {
@@ -34,6 +36,8 @@ class IgnisBridgePlugin extends Plugin {
     this._loadingGateUnsub = installLoadingGate();
     this._insecureApiUnsub = initInsecureApiNotice();
     this._proxyBlockUnsub = initProxyBlockNotice(this.app);
+    this._writeGiveupUnsub = initWriteGiveupNotice();
+    this._imageRetryUnsub = initImageRetry();
 
     this.addRibbonIcon("upload", "Upload file", () => {
       showFilePicker(this.app);
@@ -81,6 +85,14 @@ class IgnisBridgePlugin extends Plugin {
 
     if (this._proxyBlockUnsub) {
       this._proxyBlockUnsub();
+    }
+
+    if (this._writeGiveupUnsub) {
+      this._writeGiveupUnsub();
+    }
+
+    if (this._imageRetryUnsub) {
+      this._imageRetryUnsub();
     }
 
     unpatchSettingsModal(this);

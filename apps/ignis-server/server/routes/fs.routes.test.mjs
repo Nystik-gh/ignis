@@ -1,4 +1,12 @@
-import { describe, it, expect, beforeAll, afterAll, beforeEach } from "vitest";
+import {
+  describe,
+  it,
+  expect,
+  vi,
+  beforeAll,
+  afterAll,
+  beforeEach,
+} from "vitest";
 import { createRequire } from "module";
 import path from "path";
 import fs from "fs";
@@ -158,6 +166,105 @@ describe("fs route handlers reconcile the coalescer buffer (WRITE_COALESCE_MS > 
     // flush-before-zip persists the buffer immediately, before the debounce window elapses.
     expect(onDisk("d/f.md")).toBe("v2zip");
     expect(writeCoalescer.getPending(abs("d/f.md"))).toBeNull();
+  });
+});
+
+describe("tree route root responses come from the bootstrap cache", () => {
+  const getTree = async (query) => (await fetch(u(`tree?${query}`))).json();
+
+  it("includes a file written through the writeFile route", async () => {
+    await writeFile("fresh.md", "hello");
+
+    const tree = await getTree(`vault=${VAULT_ID}`);
+
+    expect(tree["fresh.md"]).toMatchObject({ type: "file" });
+  });
+
+  it("picks up a file created on disk outside the HTTP routes", async () => {
+    await writeFile("seed.md", "seed");
+    await getTree(`vault=${VAULT_ID}`);
+
+    // Windows directory mtime granularity is coarser than back-to-back writes.
+    await sleep(50);
+    fs.writeFileSync(abs("direct.md"), "direct");
+
+    const tree = await getTree(`vault=${VAULT_ID}`);
+
+    expect(tree["direct.md"]).toMatchObject({ type: "file" });
+    expect(tree["seed.md"]).toMatchObject({ type: "file" });
+  });
+
+  it("serves two concurrent root requests from one build", async () => {
+    await writeFile("dedup.md", "x");
+
+    const logs = [];
+    const spy = vi.spyOn(console, "log").mockImplementation((...args) => {
+      logs.push(args.join(" "));
+    });
+    let first, second;
+
+    try {
+      [first, second] = await Promise.all([
+        getTree(`vault=${VAULT_ID}`),
+        getTree(`vault=${VAULT_ID}`),
+      ]);
+    } finally {
+      spy.mockRestore();
+    }
+
+    expect(first["dedup.md"]).toMatchObject({ type: "file" });
+    expect(second).toEqual(first);
+    expect(logs.filter((l) => l.includes("[bootstrap]"))).toHaveLength(1);
+  });
+});
+
+describe("tree route conditional fetch via ETag", () => {
+  const getTree = (query, headers) =>
+    fetch(u(`tree?${query}`), headers ? { headers } : undefined);
+
+  it("returns an ETag header on the root tree", async () => {
+    await writeFile("etag-seed.md", "hi");
+
+    const res = await getTree(`vault=${VAULT_ID}`);
+
+    expect(res.status).toBe(200);
+    expect(res.headers.get("etag")).toBeTruthy();
+  });
+
+  it("returns 304 with an empty body when If-None-Match matches", async () => {
+    await writeFile("etag-match.md", "hi");
+
+    const first = await getTree(`vault=${VAULT_ID}`);
+    const etag = first.headers.get("etag");
+    await first.json();
+
+    const second = await getTree(`vault=${VAULT_ID}`, {
+      "If-None-Match": etag,
+    });
+
+    expect(second.status).toBe(304);
+    expect(second.headers.get("etag")).toBe(etag);
+    expect(await second.text()).toBe("");
+  });
+
+  it("serves 200 with the new file and a changed ETag after a write", async () => {
+    await writeFile("base.md", "hi");
+
+    const first = await getTree(`vault=${VAULT_ID}`);
+    const oldEtag = first.headers.get("etag");
+    await first.json();
+
+    await writeFile("added.md", "new");
+
+    const second = await getTree(`vault=${VAULT_ID}`, {
+      "If-None-Match": oldEtag,
+    });
+    const tree = await second.json();
+    const newEtag = second.headers.get("etag");
+
+    expect(second.status).toBe(200);
+    expect(tree["added.md"]).toMatchObject({ type: "file" });
+    expect(newEtag).not.toBe(oldEtag);
   });
 });
 

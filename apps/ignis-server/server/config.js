@@ -23,7 +23,8 @@ try {
 }
 
 function discoverVaults() {
-  const vaults = {};
+  // clean object. TODO: refactor to Map for more idiomatic code.
+  const vaults = Object.create(null);
 
   try {
     const entries = fs.readdirSync(vaultRoot, { withFileTypes: true });

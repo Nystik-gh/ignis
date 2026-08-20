@@ -68,7 +68,7 @@ Immediately after the bootstrap response is applied, the client prefetches file 
 | `child_process`      | All functions throw "not available in the web version."                                         |
 | `net`                | All classes/functions throw.                                                                    |
 | `http` / `https`     | Module is importable but `request()`/`get()` emit an `error` event; `createServer` throws. Plugins should use `requestUrl` or `fetch` (the shim routes cross-origin `fetch` through the server proxy). |
-| `buffer`             | Aliased to the browser `Buffer` polyfill set up by the loader.                                  |
+| `buffer`             | Aliased to the browser `Buffer` polyfill set up by the loader. `from` and `toString` cover utf-8, latin1/ascii/binary, base64, and hex; an unrecognized encoding warns once and falls back to utf-8.                                  |
 | `assert`             | Standard assertions: `assert`, `equal`, `strictEqual`, `deepEqual`, `throws`. |
 | `constants`          | File access and mode constants (`F_OK`, `O_RDONLY`, `S_IFMT`, etc.) for the reported Linux platform. |
 | `stream`             | Base classes (`Stream`, `Readable`, `Writable`, `Duplex`, `Transform`, `PassThrough`) extending EventEmitter. Data-flow methods warn and do nothing. |
@@ -81,9 +81,9 @@ Two caches on the client side. The **MetadataCache** holds `{ type, size, mtime,
 
 Reads not satisfied by ContentCache go through the transport layer to `/api/fs/readFile`. Sync calls use synchronous XHR to keep Obsidian's pre-boot module code working. Async calls use fetch. The transport handles vault id injection, base64 encoding for binary files, and mapping HTTP error codes back to Node errno values (`ENOENT`, `EEXIST`, `ENOTDIR`).
 
-Writes go through a server-side write coalescer (`packages/server-core/src/write-coalescer.js`) designed for slow filesystems like rclone FUSE mounts. The first write to a path goes to disk immediately. Subsequent writes within a configurable window (`WRITE_COALESCE_MS`, default `0` which disables coalescing) are buffered and flushed when the debounce timer fires; the timer resets on each write. Buffered writes return to the HTTP client immediately with synthetic metadata so connection-pool starvation on rapid-fire writes (e.g. `workspace.json` autosaves) doesn't stall unrelated reads. Reads for pending paths serve the buffered content so clients never see stale data. All pending writes are flushed on graceful shutdown.
+Writes go through a server-side write coalescer (`packages/server-core/src/write-coalescer.js`) designed for slow filesystems like rclone FUSE mounts. The first write to a path goes to disk immediately. Subsequent writes within a configurable window (`WRITE_COALESCE_MS`, default `0` which disables coalescing) are buffered and flushed when the debounce timer fires; the timer resets on each write. Buffered writes return to the HTTP client immediately with synthetic metadata so connection-pool starvation on rapid-fire writes (e.g. `workspace.json` autosaves) doesn't stall unrelated reads. Reads for pending paths serve the buffered content so clients never see stale data. A flush that fails is retried with backoff; when retries are exhausted the buffer is dropped and a give-up event goes out over the WebSocket. All pending writes are flushed on graceful shutdown.
 
-A write that fails at the transport is queued per path and retried in the background with backoff, so a transient network or server error does not lose the write. A dirty-state store tracks which paths have writes still pending and which have exhausted their retries and failed. This state is exposed to other client components.
+A write that fails at the transport is queued per path and retried in the background with backoff, so a transient network or server error does not lose the write. The queue drains immediately when the tab is hidden or the page unloads. A dirty-state store tracks which paths have writes still pending and which have exhausted their retries and failed. This state is exposed to other client components.
 
 ### Transforms
 
@@ -127,7 +127,8 @@ The bridge contributes:
 - **Commands**: `Open workspace in new tab`.
 - **Status bar item**: a dot carrying connection state (color, from the WebSocket) and write state (a pulse while writes are pending or retrying), with a sticky failure Notice offering Retry when writes give up.
 - **Loading gate**: patches `MarkdownView.onLoadFile` so a note whose content is still loading stays in reading mode with a loading indicator and blocked input, restoring the prior editing mode when the read settles (`loading-gate.js`, `view-mode.js`).
-- **Save notice**: a "Saving..." Notice when a save takes more than a couple of seconds, changing to "Saved" when it finishes; config-file writes are excluded (`save-notice.js`).
+- **Image retry**: an `<img>` pointed at `/vault-files/` that fails to load is re-requested a few times with backoff and cache busting. (`image-retry.js`).
+- **Save notices**: a "Saving..." Notice when a save takes more than a couple of seconds, changing to "Saved" when it finishes, and an error Notice when a write gives up; config-file writes get no saving notice (`save-notice.js`, `write-giveup-notice.js`).
 - **Runtime warnings**: listens for the shim's `ignis:insecure-api` and `ignis:proxy-blocked` events and shows a Notice for each, rate limited so retry loops don't spam. For a blocked proxy connection the Notice has a Details button that opens a modal explaining how to unblock it (`insecure-api-notice.js`, `proxy-block-notice.js`). The Ignis settings tab also shows a warning when the connection is insecure.
 - **Settings injection**: monkey-patches `app.setting.onOpen` to add two tabs in their own "Ignis" sidebar group. Each enabled Ignis plugin's companion is pulled into a separate "Ignis Core Plugins" sidebar group.
 - **Demo guards**: in demo mode, a MutationObserver disables every email/password input that appears anywhere in the document.
@@ -141,9 +142,9 @@ Any subdirectory under the vault root is treated as a vault. The active vault is
 An Express server that handles filesystem operations, vault management, static file serving, and plugin route dispatch.
 
 **Route groups:**
-- `/api/fs/*` - filesystem operations (read, write, stat, tree, mkdir, batch-read, download, download-zip, etc.).
+- `/api/fs/*` - filesystem operations (read, write, stat, tree, mkdir, batch-read, download, download-zip, etc.). `/tree` returns the whole vault's metadata tree from the bootstrap cache with an ETag, answering 304 on `If-None-Match`.
 - `/api/vault/*` - vault CRUD and config.
-- `/api/bootstrap` - one-shot cold-start endpoint; returns vault info + list + metadata tree + plugin list as a single pre-compressed response, cached per vault with mtime-based invalidation.
+- `/api/bootstrap` - one-shot cold-start endpoint; returns vault info + list + metadata tree + plugin list as a single pre-compressed response, cached per vault and invalidated by a directory mtime change or a watcher event on that vault.
 - `/api/proxy` - cross-origin HTTP proxy used by the fetch and requestUrl shims.
 - `/api/version` - Ignis version (SemVer), per-build identifier, and pinned Obsidian version.
 - `/api/settings/*` - read and update runtime server settings (cache sizes, request body limit, write-coalesce window, proxy mode and allowlist, direct-fetch host allowlist).
@@ -151,9 +152,9 @@ An Express server that handles filesystem operations, vault management, static f
 - `/api/ext/:pluginId/*` - routes registered by individual Ignis plugins.
 - `/vault-files/<vaultId>/<path>` - static file serving rooted at a vault, used by Obsidian for image/attachment resource URLs.
 
-**WebSocket:** A file watcher monitors vault directories and pushes change events to connected clients, keeping the client-side metadata and content caches in sync. An echo guard suppresses events caused by the same client's recent writes so they don't bounce back. A ping/pong heartbeat keeps connections alive through idle-timeout proxies and terminates any that stop responding; after a reconnect the client reconciles its metadata cache so file events missed while the socket was down are recovered. The watcher also carries plugin-defined message types (e.g. headless-sync status broadcasts).
+**WebSocket:** A file watcher monitors vault directories and pushes change events to connected clients, keeping the client-side metadata and content caches in sync. A vault's watcher starts when the first client connects and is shared by every client on that vault, so a reload picks up the running watcher; it stops 10 minutes after the last listener goes away. An echo guard suppresses events caused by the same client's recent writes so they don't bounce back. A ping/pong heartbeat keeps connections alive through idle-timeout proxies and terminates any that stop responding. On every socket open, first connect included, the client resyncs its metadata cache from `/api/fs/tree`, conditioned on the tree ETag so an unchanged tree answers 304. That recovers file events missed while the socket was down. The watcher also carries plugin-defined message types (e.g. headless-sync status broadcasts).
 
-**Legacy bridge cleanup:** Earlier versions installed the bridge into each vault's `.obsidian/plugins/`. The bridge is now bundled into the shim and loaded client-side, so on startup the server removes any leftover on-disk `ignis-bridge` install from each vault (and strips it from `community-plugins.json`).
+**Vault mutations:** renaming or removing a vault stops that vault's watcher first (`apps/ignis-server/server/vault-lifecycle.js`). If the mutation throws, the vault list is refreshed, the watcher is restarted, and that vault's sockets are closed.
 
 ## Plugins
 

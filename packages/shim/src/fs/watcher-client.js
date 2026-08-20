@@ -81,8 +81,13 @@ export function createWatcherClient(
   wsClient.subscribe("modified", handleModified);
   wsClient.subscribe("deleted", handleDeleted);
 
-  // Re-derive the cache from a freshly fetched tree after a reconnect.
-  // Each delta runs through the live-event handlers, matching live behavior.
+  let treeRevision = null;
+
+  function setTreeRevision(rev) {
+    treeRevision = rev;
+  }
+
+  // Diffs a full server tree against the cache; each delta goes through the file watcher event handlers.
   function reconcile(tree) {
     const fresh = new Set(Object.keys(tree).map(normalize));
 
@@ -121,19 +126,24 @@ export function createWatcherClient(
   }
 
   async function resync() {
-    let tree;
+    let result;
 
     try {
-      tree = await transport.fetchTree();
+      result = await transport.fetchTree(treeRevision);
     } catch (e) {
-      console.warn("[shim:fs] reconnect resync failed:", e);
+      console.warn("[shim:fs] tree resync failed:", e);
       return;
     }
 
-    reconcile(tree);
+    if (result.notModified) {
+      return;
+    }
+
+    treeRevision = result.etag;
+    reconcile(result.tree);
   }
 
-  // Coalesce a burst of reconnects into a single resync once the socket settles.
+  // Coalesce a burst of opens into a single resync once the socket settles.
   let resyncTimer = null;
 
   function scheduleResync() {
@@ -147,7 +157,7 @@ export function createWatcherClient(
     }, RESYNC_DEBOUNCE_MS);
   }
 
-  wsClient.onReconnect(scheduleResync);
+  wsClient.onOpen(scheduleResync);
 
   function connect(vaultId) {
     wsClient.connect(vaultId);
@@ -161,5 +171,6 @@ export function createWatcherClient(
     connect,
     disconnect,
     reconcile,
+    setTreeRevision,
   };
 }

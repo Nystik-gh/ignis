@@ -32,33 +32,13 @@ describe("MetadataCache path normalization", () => {
 
 // -- Operations ------------------------------------------------------
 
-describe("MetadataCache populate and merge", () => {
+describe("MetadataCache populate", () => {
   it("populate() clears existing entries", () => {
     const cache = new MetadataCache();
     cache.set("old.md", { type: "file", size: 1 });
     cache.populate({ "new.md": { type: "file", size: 2 } });
     expect(cache.has("old.md")).toBe(false);
     expect(cache.has("new.md")).toBe(true);
-  });
-
-  it("merge() preserves existing entries", () => {
-    const cache = new MetadataCache();
-    cache.set("existing.md", { type: "file", size: 1 });
-    cache.merge({ "added.md": { type: "file", size: 2 } });
-    expect(cache.has("existing.md")).toBe(true);
-    expect(cache.has("added.md")).toBe(true);
-  });
-
-  it("populate then merge. pre-existing entries survive merge", () => {
-    const cache = new MetadataCache();
-    cache.populate({
-      "a.md": { type: "file", size: 1 },
-      "b.md": { type: "file", size: 2 },
-    });
-    cache.merge({ "c.md": { type: "file", size: 3 } });
-    expect(cache.has("a.md")).toBe(true);
-    expect(cache.has("b.md")).toBe(true);
-    expect(cache.has("c.md")).toBe(true);
   });
 });
 

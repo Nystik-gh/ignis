@@ -48,7 +48,8 @@ For example:
 | Variable | Default | Description |
 | --- | --- | --- |
 | `AUTO_CREATE_DEFAULT` | `false` | Create a "My Vault" vault on startup when none exist. |
-| `WRITE_COALESCE_MS` | `0` | Debounce window in milliseconds for rapid writes. Raise it on slow filesystems such as rclone, NFS, or SMB. |
+| `WRITE_COALESCE_MS` | `0` | Debounce window in milliseconds for rapid writes. Raise it on slow filesystems such as rclone, NFS, or SMB. Max 60000. |
+| `UV_THREADPOOL_SIZE` | `4` | Node variable controlling how many file operations Ignis can run concurrently. Raising it helps with large vaults on network filesystems. |
 
 ---
 

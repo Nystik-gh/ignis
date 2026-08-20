@@ -107,6 +107,21 @@ Symlinks inside the vaults folder are followed only if the link target exists in
 
 The startup log lists the vaults that were found. A folder that could not be read is skipped, with a `[config] Skipping unreadable vault entry` line giving the reason.
 
+### Network filesystems
+
+Network filesystems have some constraints that can result in performance issues with large vaults. If a vault on an NFS or SMB mount feels slow, increasing the `UV_THREADPOOL_SIZE` environment variable can help avoid congestion by letting Ignis run more file operations concurrently:
+
+```yaml
+    environment:
+      - UV_THREADPOOL_SIZE=64 # default is 4
+```
+
+Ignis also watches every file in an open vault for changes, and the number of files that can be watched is decided by the host system. If you see startup errors mentioning `fs.inotify.max_user_watches`, you can try raising the limit on the host machine:
+
+```sh
+sysctl fs.inotify.max_user_watches=524288
+```
+
 ### Offline install
 
 If the container cannot reach the internet on first run, you can download the Obsidian `.deb` from [obsidian.md](https://obsidian.md/download) manually, mount it, and point `OBSIDIAN_PACKAGE` at it:

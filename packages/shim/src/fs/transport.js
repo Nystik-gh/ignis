@@ -119,6 +119,30 @@ function requestSync(method, endpoint, params = {}) {
 }
 
 export const transport = {
+  async refreshVaultFromDisk() {
+    const res = await fetch(
+      new URL("/api/vault/refresh", window.location.origin).toString(),
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ vault: vaultId() }),
+      },
+    );
+
+    if (!res.ok) {
+      const err = await res
+        .json()
+        .catch(() => ({ error: res.statusText, code: "UNKNOWN" }));
+      const e = new Error(err.error || res.statusText);
+      e.code = err.code || "UNKNOWN";
+      e.status = res.status;
+      e.retryAfterMs = err.retryAfterMs;
+      throw e;
+    }
+
+    return res.json();
+  },
+
   async fetchTree(etag) {
     const headers = etag ? { "If-None-Match": etag } : undefined;
     const res = await request("GET", "/tree", {}, headers);

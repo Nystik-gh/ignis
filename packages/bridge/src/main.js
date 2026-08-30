@@ -18,6 +18,7 @@ import { initInsecureApiNotice } from "./insecure-api-notice.js";
 import { initProxyBlockNotice } from "./proxy-block-notice.js";
 import { initWriteGiveupNotice } from "./write-giveup-notice.js";
 import { initImageRetry } from "./image-retry.js";
+import { registerVaultRefreshCommand } from "./vault-refresh.js";
 
 class IgnisBridgePlugin extends Plugin {
   async onload() {
@@ -50,6 +51,7 @@ class IgnisBridgePlugin extends Plugin {
         new WorkspacePickerModal(this.app).open();
       },
     });
+    registerVaultRefreshCommand(this);
 
     this.registerEvent(
       this.app.workspace.on("file-menu", (menu, file) => {

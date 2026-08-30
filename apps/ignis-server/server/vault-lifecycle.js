@@ -37,4 +37,12 @@ async function withWatcherStopped(vaultId, vaultPath, mutate) {
   }
 }
 
-module.exports = { setWss, withWatcherStopped };
+function broadcastVaultRefresh(vaultId, treeRevision) {
+  if (!wss) {
+    return;
+  }
+
+  wss.broadcastToVault(vaultId, { type: "vault-refreshed", treeRevision });
+}
+
+module.exports = { setWss, withWatcherStopped, broadcastVaultRefresh };

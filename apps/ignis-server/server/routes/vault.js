@@ -3,10 +3,17 @@ const fs = require("fs");
 const config = require("../config");
 const path = require("path");
 const bootstrapRoutes = require("./bootstrap");
-const { withWatcherStopped } = require("../vault-lifecycle");
+const {
+  withWatcherStopped,
+  broadcastVaultRefresh,
+} = require("../vault-lifecycle");
 const { sanitizeError } = require("@ignis/server-core");
+const settings = require("../settings");
 
 const router = express.Router();
+const REFRESH_COOLDOWN_MS = 10000;
+const refreshInFlight = new Map();
+const refreshLastSuccess = new Map();
 
 // Vault names become directories under VAULT_ROOT; reject traversal, hidden, and reserved-device names.
 const WINDOWS_RESERVED = /^(con|prn|aux|nul|com[1-9]|lpt[1-9])(\..*)?$/i;
@@ -25,6 +32,16 @@ function isValidVaultName(name) {
   }
 
   return !WINDOWS_RESERVED.test(name);
+}
+
+function isAllowedOrigin(origin) {
+  const allowed = settings.get("wsOrigins");
+
+  if (!Array.isArray(allowed) || allowed.length === 0) {
+    return true;
+  }
+
+  return typeof origin === "string" && allowed.includes(origin);
 }
 
 // GET /api/vault/list - returns all discovered vaults (re-scans on each call)
@@ -56,6 +73,70 @@ router.get("/info", async (req, res) => {
     platform: process.platform,
     version: config.obsidianVersion,
   });
+});
+
+// POST /api/vault/refresh { vault } - force rebuild the server tree cache from disk
+router.post("/refresh", async (req, res) => {
+  const origin = req.headers.origin;
+
+  if (!isAllowedOrigin(origin)) {
+    return res.status(403).json({ error: "Origin not allowed" });
+  }
+
+  const vaultId = req.body?.vault || config.defaultVaultId;
+  const vaultPath = config.getVaultPath(vaultId);
+
+  if (!vaultPath) {
+    return res.status(404).json({ error: "Vault not found", id: vaultId });
+  }
+
+  if (refreshInFlight.has(vaultId)) {
+    return res.status(409).json({ error: "Vault refresh already running" });
+  }
+
+  const now = Date.now();
+  const lastSuccess = refreshLastSuccess.get(vaultId) || 0;
+  const retryAfterMs = REFRESH_COOLDOWN_MS - (now - lastSuccess);
+
+  if (retryAfterMs > 0) {
+    res.setHeader("Retry-After", Math.ceil(retryAfterMs / 1000));
+    return res.status(429).json({
+      error: "Vault refresh cooldown active",
+      retryAfterMs,
+    });
+  }
+
+  const startedAt = Date.now();
+  const refresh = bootstrapRoutes.refreshVaultFromDisk(vaultId);
+
+  refreshInFlight.set(vaultId, refresh);
+
+  try {
+    const result = await refresh;
+
+    if (!result) {
+      return res.status(404).json({ error: "Vault not found", id: vaultId });
+    }
+
+    const elapsedMs = Date.now() - startedAt;
+    refreshLastSuccess.set(vaultId, Date.now());
+    broadcastVaultRefresh(vaultId, result.treeRevision);
+    console.log(
+      `[vault] refresh vault=${vaultId} files=${result.files} dirs=${result.directories} time=${elapsedMs}ms`,
+    );
+
+    res.json({
+      vault: vaultId,
+      treeRevision: result.treeRevision,
+      files: result.files,
+      directories: result.directories,
+      elapsedMs,
+    });
+  } catch (e) {
+    res.status(500).json(sanitizeError(e));
+  } finally {
+    refreshInFlight.delete(vaultId);
+  }
 });
 
 // POST /api/vault/create { name } - create a new vault in VAULT_ROOT
@@ -158,3 +239,7 @@ router.delete("/remove", async (req, res) => {
 });
 
 module.exports = router;
+module.exports._resetRefreshState = function () {
+  refreshInFlight.clear();
+  refreshLastSuccess.clear();
+};

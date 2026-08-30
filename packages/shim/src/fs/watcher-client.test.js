@@ -153,4 +153,23 @@ describe("watcher-client resync", () => {
 
     expect(d.transport.fetchTree).toHaveBeenLastCalledWith('"2"');
   });
+
+  it("coalesces vault-refreshed messages into one resync", async () => {
+    const d = makeDeps();
+    d.transport.fetchTree.mockResolvedValue({
+      tree: { "fresh.md": { type: "file", size: 3, mtime: 1, ctime: 1 } },
+      etag: '"2"',
+    });
+
+    const refreshed = d.wsClient.subscribe.mock.calls.find(
+      ([type]) => type === "vault-refreshed",
+    )[1];
+
+    refreshed({ type: "vault-refreshed", treeRevision: '"2"' });
+    refreshed({ type: "vault-refreshed", treeRevision: '"3"' });
+    await vi.advanceTimersByTimeAsync(RESYNC_DEBOUNCE_MS);
+
+    expect(d.transport.fetchTree).toHaveBeenCalledTimes(1);
+    expect(d.store.get("fresh.md")).toMatchObject({ type: "file", size: 3 });
+  });
 });

@@ -158,6 +158,7 @@ export function createWatcherClient(
   }
 
   wsClient.onOpen(scheduleResync);
+  wsClient.subscribe("vault-refreshed", scheduleResync);
 
   function connect(vaultId) {
     wsClient.connect(vaultId);
@@ -171,6 +172,7 @@ export function createWatcherClient(
     connect,
     disconnect,
     reconcile,
+    scheduleResync,
     setTreeRevision,
   };
 }

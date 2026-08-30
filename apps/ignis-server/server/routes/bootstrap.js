@@ -139,7 +139,7 @@ async function dirMtimesUnchanged(vaultPath, dirMtimes) {
   return checks.every(Boolean);
 }
 
-async function buildEntry(vaultId) {
+async function buildEntry(vaultId, opts = {}) {
   const vaultPath = config.getVaultPath(vaultId);
 
   if (!vaultPath) {
@@ -148,7 +148,11 @@ async function buildEntry(vaultId) {
 
   const cached = cache.get(vaultId);
 
-  if (cached && (await dirMtimesUnchanged(vaultPath, cached.dirMtimes))) {
+  if (
+    !opts.force &&
+    cached &&
+    (await dirMtimesUnchanged(vaultPath, cached.dirMtimes))
+  ) {
     return cached;
   }
 
@@ -210,6 +214,29 @@ async function getOrBuild(vaultId) {
   pendingBuilds.set(vaultId, promise);
 
   return promise;
+}
+
+async function refreshVaultFromDisk(vaultId) {
+  cache.delete(vaultId);
+
+  const entry = await buildEntry(vaultId, { force: true });
+
+  if (!entry) {
+    return null;
+  }
+
+  const tree = entry.response.tree;
+  const files = Object.values(tree).filter((m) => m.type === "file").length;
+  const directories = Object.values(tree).filter(
+    (m) => m.type === "directory",
+  ).length;
+
+  return {
+    entry,
+    treeRevision: entry.response.treeRevision,
+    files,
+    directories,
+  };
 }
 
 function invalidateVault(vaultId) {
@@ -292,3 +319,4 @@ module.exports.invalidateAll = invalidateAll;
 module.exports.warmUp = warmUp;
 module.exports.walkTree = walkTree;
 module.exports.getOrBuild = getOrBuild;
+module.exports.refreshVaultFromDisk = refreshVaultFromDisk;

@@ -139,7 +139,7 @@ async function dirMtimesUnchanged(vaultPath, dirMtimes) {
   return checks.every(Boolean);
 }
 
-async function buildEntry(vaultId, opts = {}) {
+async function buildEntry(vaultId) {
   const vaultPath = config.getVaultPath(vaultId);
 
   if (!vaultPath) {
@@ -148,11 +148,7 @@ async function buildEntry(vaultId, opts = {}) {
 
   const cached = cache.get(vaultId);
 
-  if (
-    !opts.force &&
-    cached &&
-    (await dirMtimesUnchanged(vaultPath, cached.dirMtimes))
-  ) {
+  if (cached && (await dirMtimesUnchanged(vaultPath, cached.dirMtimes))) {
     return cached;
   }
 
@@ -225,15 +221,7 @@ async function refreshVaultFromDisk(vaultId) {
 
   cache.delete(vaultId);
 
-  const promise = buildEntry(vaultId, { force: true }).finally(() => {
-    if (pendingBuilds.get(vaultId) === promise) {
-      pendingBuilds.delete(vaultId);
-    }
-  });
-
-  pendingBuilds.set(vaultId, promise);
-
-  const entry = await promise;
+  const entry = await getOrBuild(vaultId);
 
   if (!entry) {
     return null;
@@ -246,7 +234,6 @@ async function refreshVaultFromDisk(vaultId) {
   ).length;
 
   return {
-    entry,
     treeRevision: entry.response.treeRevision,
     files,
     directories,

@@ -217,9 +217,23 @@ async function getOrBuild(vaultId) {
 }
 
 async function refreshVaultFromDisk(vaultId) {
+  const pending = pendingBuilds.get(vaultId);
+
+  if (pending) {
+    await pending.catch(() => {});
+  }
+
   cache.delete(vaultId);
 
-  const entry = await buildEntry(vaultId, { force: true });
+  const promise = buildEntry(vaultId, { force: true }).finally(() => {
+    if (pendingBuilds.get(vaultId) === promise) {
+      pendingBuilds.delete(vaultId);
+    }
+  });
+
+  pendingBuilds.set(vaultId, promise);
+
+  const entry = await promise;
 
   if (!entry) {
     return null;

@@ -8,7 +8,6 @@ const {
   broadcastVaultRefresh,
 } = require("../vault-lifecycle");
 const { sanitizeError } = require("@ignis/server-core");
-const settings = require("../settings");
 
 const router = express.Router();
 const REFRESH_COOLDOWN_MS = 10000;
@@ -32,16 +31,6 @@ function isValidVaultName(name) {
   }
 
   return !WINDOWS_RESERVED.test(name);
-}
-
-function isAllowedOrigin(origin) {
-  const allowed = settings.get("wsOrigins");
-
-  if (!Array.isArray(allowed) || allowed.length === 0) {
-    return true;
-  }
-
-  return typeof origin === "string" && allowed.includes(origin);
 }
 
 // GET /api/vault/list - returns all discovered vaults (re-scans on each call)
@@ -77,13 +66,12 @@ router.get("/info", async (req, res) => {
 
 // POST /api/vault/refresh { vault } - force rebuild the server tree cache from disk
 router.post("/refresh", async (req, res) => {
-  const origin = req.headers.origin;
+  const vaultId = req.body?.vault;
 
-  if (!isAllowedOrigin(origin)) {
-    return res.status(403).json({ error: "Origin not allowed" });
+  if (!vaultId) {
+    return res.status(400).json({ error: "Missing vault ID" });
   }
 
-  const vaultId = req.body?.vault || config.defaultVaultId;
   const vaultPath = config.getVaultPath(vaultId);
 
   if (!vaultPath) {

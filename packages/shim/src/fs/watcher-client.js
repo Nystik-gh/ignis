@@ -172,7 +172,6 @@ export function createWatcherClient(
     connect,
     disconnect,
     reconcile,
-    scheduleResync,
     setTreeRevision,
   };
 }

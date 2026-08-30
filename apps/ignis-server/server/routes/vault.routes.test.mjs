@@ -22,7 +22,6 @@ fs.mkdirSync(vaultDir, { recursive: true });
 
 const config = require("../config");
 config.refreshVaults();
-const settings = require("../settings");
 const vaultRouter = require("./vault");
 const fsRouter = require("./fs");
 const bootstrap = require("./bootstrap");
@@ -67,30 +66,25 @@ beforeEach(() => {
 });
 
 const abs = (p) => path.join(vaultDir, p);
-const allowedOrigin = "https://allowed.example";
 
-function allowOrigin() {
-  vi.spyOn(settings, "get").mockImplementation((key) =>
-    key === "wsOrigins" ? [allowedOrigin] : settings.DEFAULTS[key],
-  );
-}
-
-function refresh(body = { vault: VAULT_ID }, headers = {}) {
+function refresh(body = { vault: VAULT_ID }) {
   return fetch(`${base}/api/vault/refresh`, {
     method: "POST",
-    headers: {
-      "content-type": "application/json",
-      origin: allowedOrigin,
-      ...headers,
-    },
+    headers: { "content-type": "application/json" },
     body: JSON.stringify(body),
   });
 }
 
 describe("vault refresh route", () => {
-  it("rejects an unknown vault", async () => {
-    allowOrigin();
+  it("requires an explicit vault", async () => {
+    const res = await refresh({});
+    const body = await res.json();
 
+    expect(res.status).toBe(400);
+    expect(body.error).toBe("Missing vault ID");
+  });
+
+  it("rejects an unknown vault", async () => {
     const res = await refresh({ vault: "missing" });
     const body = await res.json();
 
@@ -98,18 +92,7 @@ describe("vault refresh route", () => {
     expect(body.id).toBe("missing");
   });
 
-  it("rejects origins outside the configured websocket origin allowlist", async () => {
-    allowOrigin();
-
-    const res = await refresh({ vault: VAULT_ID }, { origin: "https://bad.example" });
-    const body = await res.json();
-
-    expect(res.status).toBe(403);
-    expect(body.error).toBe("Origin not allowed");
-  });
-
   it("forces a disk walk and replaces a cached tree after a file body changes", async () => {
-    allowOrigin();
     fs.writeFileSync(abs("same-size.md"), "aa");
 
     const first = await fetch(`${base}/api/fs/tree?vault=${VAULT_ID}`);
@@ -138,7 +121,6 @@ describe("vault refresh route", () => {
   });
 
   it("broadcasts vault-refreshed after a successful refresh", async () => {
-    allowOrigin();
     fs.writeFileSync(abs("note.md"), "hi");
 
     const res = await refresh();
@@ -152,7 +134,6 @@ describe("vault refresh route", () => {
   });
 
   it("enforces a cooldown after a successful refresh", async () => {
-    allowOrigin();
     fs.writeFileSync(abs("note.md"), "hi");
 
     expect((await refresh()).status).toBe(200);
@@ -166,7 +147,6 @@ describe("vault refresh route", () => {
   });
 
   it("rejects a second refresh while one is already running", async () => {
-    allowOrigin();
     let release;
     const gate = new Promise((resolve) => {
       release = resolve;

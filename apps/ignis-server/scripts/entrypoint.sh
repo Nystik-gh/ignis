@@ -26,7 +26,7 @@ fi
 
 mkdir -p /app/data
 # Best-effort: a read-only or root_squash mount forbids chown, but PUID/PGID may already have access.
-for dir in /app/obsidian-app /app/data; do
+for dir in /app/obsidian-app /app/data /vaults; do
   chown -R "$PUID:$PGID" "$dir" 2>/dev/null || echo "[ignis] WARNING: could not chown $dir (read-only mount or NFS root_squash); continuing. Ensure PUID/PGID can read+write it."
 done
 

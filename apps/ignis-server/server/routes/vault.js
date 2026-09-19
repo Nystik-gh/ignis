@@ -10,6 +10,22 @@ const { sanitizeError } = require("@ignis/server-core");
 
 const router = express.Router();
 
+// Vault management (list/info/refresh/create/rename/remove) has no user-level auth yet, so
+// restrict it to requests originating from this machine. This keeps the endpoints from being
+// reachable by any other host on the network while remaining usable for local clients/tests.
+function isLoopback(req) {
+  const ip = req.socket?.remoteAddress || "";
+  return ip === "127.0.0.1" || ip === "::1" || ip === "::ffff:127.0.0.1";
+}
+
+router.use((req, res, next) => {
+  if (!isLoopback(req)) {
+    return res.status(403).json({ error: "Forbidden" });
+  }
+
+  next();
+});
+
 // Vault names become directories under VAULT_ROOT; reject traversal, hidden, and reserved-device names.
 const WINDOWS_RESERVED = /^(con|prn|aux|nul|com[1-9]|lpt[1-9])(\..*)?$/i;
 
@@ -33,6 +49,18 @@ function isValidVaultName(name) {
   }
 
   return !WINDOWS_RESERVED.test(name);
+}
+
+// Resolve a validated vault name to a path guaranteed to stay inside VAULT_ROOT.
+function resolveNewVaultPath(name) {
+  const root = path.resolve(config.vaultRoot);
+  const resolved = path.resolve(root, name);
+
+  if (resolved !== root && !resolved.startsWith(root + path.sep)) {
+    return null;
+  }
+
+  return resolved;
 }
 
 // GET /api/vault/list - returns all discovered vaults (re-scans on each call)
@@ -99,7 +127,11 @@ router.post("/create", async (req, res) => {
     return res.status(400).json({ error: "Invalid vault name" });
   }
 
-  const vaultPath = path.join(config.vaultRoot, name);
+  const vaultPath = resolveNewVaultPath(name);
+
+  if (!vaultPath) {
+    return res.status(400).json({ error: "Invalid vault name" });
+  }
 
   try {
     await fs.promises.mkdir(vaultPath, { recursive: false });

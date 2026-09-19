@@ -22,3 +22,7 @@ export const webFrame = {
     document.body.style.zoom = factor;
   },
 };
+
+// Shared reference so @electron/remote's BrowserWindow shim can drive the
+// same zoom state (setFrameZoomLevel) instead of holding its own copy.
+window.__shimWebFrame = webFrame;

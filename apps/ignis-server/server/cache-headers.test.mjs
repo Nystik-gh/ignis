@@ -6,11 +6,11 @@ const { versionedSrc, cacheControlFor } = require("./cache-headers.js");
 
 describe("versionedSrc", () => {
   it("appends ?v when the src has no query", () => {
-    expect(versionedSrc("app.js", "1.12.7")).toBe("app.js?v=1.12.7");
+    expect(versionedSrc("app.js", "1.13.7")).toBe("app.js?v=1.13.7");
   });
 
   it("appends &v when the src already has a query", () => {
-    expect(versionedSrc("a.js?x=1", "1.12.7")).toBe("a.js?x=1&v=1.12.7");
+    expect(versionedSrc("a.js?x=1", "1.13.7")).toBe("a.js?x=1&v=1.13.7");
   });
 
   it("leaves the src unchanged when the version is missing", () => {

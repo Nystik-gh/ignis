@@ -85,8 +85,21 @@ const currentWindow = {
   setPosition(x, y) {},
   center() {},
 
+  // Obsidian 1.13.x settings window sets a minimum size on the frame.
+  // The browser window cannot be constrained; accept and ignore.
+  setMinimumSize() {},
+
   setTrafficLightPosition() {},
   setWindowButtonPosition() {},
+
+  // Obsidian 1.13.x settings window calls this to sync the frame zoom level
+  // with the webFrame zoom. The browser window is the frame, so map it onto
+  // the same webFrame zoom used by electron.webFrame.
+  setFrameZoomLevel(level) {
+    if (typeof level === "number" && window.__shimWebFrame) {
+      window.__shimWebFrame.setZoomLevel(level);
+    }
+  },
 
   get webContents() {
     return webContentsShim._current();
@@ -267,6 +280,9 @@ const currentWebContents = {
       });
   },
   replaceMisspelling(word) {},
+
+  // macOS dictionary lookup; no equivalent in the browser.
+  showDefinitionForSelection() {},
 
   session: {
     availableSpellCheckerLanguages: [],

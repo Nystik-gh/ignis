@@ -31,7 +31,7 @@ for dir in /app/obsidian-app /app/data /vaults; do
 done
 
 OBSIDIAN_DIR="/app/obsidian-app"
-OBSIDIAN_VERSION="${OBSIDIAN_VERSION:-1.12.7}"
+OBSIDIAN_VERSION="${OBSIDIAN_VERSION:-1.13.7}"
 OBSIDIAN_STAMP="$OBSIDIAN_DIR/.obsidian-version"
 
 warn_obsidian_version() {

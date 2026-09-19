@@ -9,6 +9,17 @@ const syncHandlers = {
   version: () => window.__obsidianVersion || "0.0.0",
   "is-dev": () => false,
 
+  // Obsidian 1.13.x startup license check. The desktop main process returns
+  // this exact string; anything else makes Obsidian call window.close() and
+  // abort startup with a blank page.
+  terms: () =>
+    "I understand and agree that I am not allowed to distribute the Obsidian application, in any form, without explicit approval from the Obsidian team. I also understand that Obsidian is a registered trademark, and I cannot use it without explicit permission granted by the Obsidian team.",
+  // 1.13.x freezes this value at startup for permission policy lookups.
+  policy: () => ({}),
+  // Unload guards: never block the tab from closing.
+  "is-closing": () => false,
+  "is-quitting": () => false,
+
   "file-url": () =>
     "/vault-files/" + encodeURIComponent(window.__currentVaultId || "") + "/",
 
@@ -35,6 +46,18 @@ const syncHandlers = {
   },
 
   sandbox: () => null,
+
+  // 1.13.x settings surface: ad-blocker lists are absent in the web version.
+  "adblock-lists": () => [],
+  "adblock-frequency": () => 0,
+
+  // Sandbox-vault detection: this build never runs inside the sandbox.
+  "get-sandbox-vault-path": () => "/",
+
+  // CLI / internal-build / language channels have no desktop equivalent.
+  cli: () => null,
+  "insider-build": () => false,
+  "set-language": () => null,
 
   "copy-asar": () => false,
   "check-update": () => null,

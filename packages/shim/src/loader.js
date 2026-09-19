@@ -45,7 +45,7 @@ const BRIDGE_MANIFEST = {
   id: "ignis-bridge",
   name: "Ignis Bridge",
   version: __IGNIS_VERSION__,
-  minAppVersion: "1.12.4",
+  minAppVersion: "1.13.0",
   description:
     "Additional Ignis specific functionality and ignis plugin management.",
   author: "Nystik",

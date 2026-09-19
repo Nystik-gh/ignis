@@ -42,10 +42,17 @@ function createTab(id, name, displayFn, app, icon) {
     icon: icon || null,
     containerEl: createDiv("vertical-tab-content"),
     navEl: null,
+    // Obsidian 1.13.x openTab() clears this after deactivating a tab.
+    renderedItems: [],
 
+    // 1.12.x calls display(); 1.13.x calls renderTab(). Keep both.
     display() {
       this.containerEl.empty();
       displayFn(this.containerEl, app);
+    },
+
+    renderTab() {
+      this.display();
     },
 
     hide() {

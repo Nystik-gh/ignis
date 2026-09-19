@@ -17,7 +17,7 @@ services:
     # To build from source instead, comment out `image` and uncomment:
     # build: ../../
     environment:
-      - OBSIDIAN_VERSION=1.12.7
+      - OBSIDIAN_VERSION=1.13.7
     volumes:
       - ./vaults:/vaults
       - ./data:/app/data

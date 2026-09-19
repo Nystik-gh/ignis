@@ -57,6 +57,7 @@ function patchOpenTab(setting, plugin) {
   }
 
   const original = setting.openTab.bind(setting);
+  setting._ignisOriginalOpenTab = original;
 
   setting.openTab = function (tab) {
     // Clear is-active from all ignis nav items.
@@ -133,9 +134,16 @@ function unpatchSettingsModal(plugin) {
     plugin.app.setting.onOpen = plugin._originalOnOpen;
   }
 
-  delete plugin.app.setting._ignisOpenTabPatched;
+  const setting = plugin.app.setting;
 
-  restoreCommunityPlugins(plugin.app.setting);
+  if (setting._ignisOriginalOpenTab) {
+    setting.openTab = setting._ignisOriginalOpenTab;
+    delete setting._ignisOriginalOpenTab;
+  }
+
+  delete setting._ignisOpenTabPatched;
+
+  restoreCommunityPlugins(setting);
   clearOwnedPluginIds();
 }
 

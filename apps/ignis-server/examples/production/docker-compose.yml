@@ -1,0 +1,49 @@
+services:
+  ignis:
+    # Pull a prebuilt image (recommended for production):
+    image: nobbe/ignis:0.8.10
+    # Or build from source instead: comment out `image` and uncomment the build block:
+    # build:
+    #   context: ../../..
+    #   dockerfile: apps/ignis-server/Dockerfile
+    #   args:
+    #     IGNIS_BUILD: prod
+    # Pin the target platform explicitly. The image is architecture-independent,
+    # but forcing amd64 avoids accidentally running an arm64 pull on a mixed host.
+    platform: linux/amd64
+    ports:
+      - "8080:8080"
+    environment:
+      # File ownership for mounted volumes.
+      - PUID=1000
+      - PGID=1000
+      # Obsidian version fetched on first run (see entrypoint.sh).
+      - OBSIDIAN_VERSION=1.13.7
+      # Create a default vault on first boot when vaults/ is empty.
+      - AUTO_CREATE_DEFAULT=true
+      # Optional: restrict WebSocket connections to your origin.
+      # - WS_ORIGINS=https://obsidian.example.com
+      # Optional: allow the CORS proxy to reach specific private hosts (LAN services).
+      # - PROXY_ALLOW_PRIVATE_HOSTS=192.168.1.10,10.0.0.0/24
+      # Optional: debounce rapid writes for slow filesystems (rclone/NFS/SMB), max 60000.
+      # - WRITE_COALESCE_MS=0
+      # Optional: concurrent file ops; raise for large vaults on network filesystems.
+      # - UV_THREADPOOL_SIZE=4
+    volumes:
+      # Notes: one subfolder per vault. Back this up.
+      - ./vaults:/vaults
+      # Ignis state: server plugin config, sync states, tokens. Back this up.
+      - ./data:/app/data
+      # Downloaded/extracted Obsidian; survives container recreates. Rebuildable, no backup needed.
+      - obsidian-app:/app/obsidian-app
+    restart: unless-stopped
+    healthcheck:
+      # First boot downloads Obsidian (1-2 min), so start_period is generous.
+      test: ["CMD", "node", "-e", "fetch('http://localhost:8080/api/version').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 180s
+
+volumes:
+  obsidian-app:

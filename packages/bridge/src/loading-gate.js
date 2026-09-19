@@ -113,8 +113,9 @@ export function uninstallLoadingGate() {
     return;
   }
 
-  // Restore the original method.
-  delete MarkdownView.prototype.onLoadFile;
+  // Restore the original method. `delete` would expose any higher prototype
+  // chain property instead of restoring what onLoadFile was before the patch.
+  MarkdownView.prototype.onLoadFile = originalOnLoadFile;
 
   patched = false;
   originalOnLoadFile = null;

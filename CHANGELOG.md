@@ -2,6 +2,26 @@
 
 All notable changes to this project will be documented in this file.
 
+## Fork: Obsidian 1.13.7 upgrade (2026-09-19)
+
+_Secondary development on top of upstream 0.8.10. This fork is maintained independently of the upstream release cadence._
+
+### Added
+
+- Upgraded the bundled Obsidian runtime from 1.12.7 to 1.13.7 (Electron 39.8.3 / Node 22.20 / Chrome 142).
+- Unit tests for the 1.13.7 upgrade fixes (IPC channels, settings-popout guard, web-frame).
+- Linux/amd64 Docker image build toolchain (`apps/ignis-server/scripts/build-image.js`) and a production compose template.
+- CI/CD workflows (`.github/workflows/`: `ci`, `build-image`, `deploy`) plus `docs/docker-build.md` and `docs/ci-cd.md`.
+- Engineering handoff doc (`HANDOFF.md`) and a Chinese documentation set under `docs/` (architecture, source analysis, value intro, upgrade lessons, Obsidian 1.12.7→1.13.7 notes).
+- Bilingual (EN + ZH) `README.md`.
+
+### Fixed
+
+- Startup white screen on Obsidian 1.13.x: implemented the required IPC `sendSync` channels (`terms`, `policy`, and others) that Obsidian queries at boot.
+- Settings panel unreachable: force `settingsPopoutWindow` off at runtime (modal mode); the on-disk config is preserved.
+- Empty bridge settings tab: provide both `display` and `renderTab` to satisfy the 1.13.x settings contract.
+- Two legacy bridge unload/restore bugs (incomplete teardown; incorrect restore path).
+
 ## [0.8.10] - Karm (2026-08-20)
 
 ### Changed

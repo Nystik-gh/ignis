@@ -1,0 +1,40 @@
+name: Deploy to server
+
+# Optional CD: after a version tag pushes the image, SSH into the production
+# host and pull + restart the container. Requires a deploy key secret and a
+# compose file already present on the host at ~/ignis/docker-compose.yml.
+#
+# Set repository secrets:
+#   DEPLOY_HOST    e.g. obsidian.example.com
+#   DEPLOY_USER    e.g. deploy
+#   DEPLOY_KEY     SSH private key (paste full contents)
+#   DEPLOY_PORT    optional, default 22
+
+on:
+  workflow_run:
+    workflows: ["Build & push image"]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    name: Deploy to ${{ vars.DEPLOY_HOST }}
+    runs-on: ubuntu-latest
+    if: ${{ github.event.workflow_run == null || github.event.workflow_run.conclusion == 'success' }}
+    environment: production
+    steps:
+      - name: SSH deploy
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: ${{ secrets.DEPLOY_USER }}
+          key: ${{ secrets.DEPLOY_KEY }}
+          port: ${{ secrets.DEPLOY_PORT || 22 }}
+          script: |
+            set -e
+            cd ~/ignis
+            docker compose pull
+            docker compose up -d
+            docker image prune -f
+            curl -fsS http://localhost:8080/api/version

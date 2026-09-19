@@ -1,0 +1,48 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  lint:
+    name: Lint & test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run lint
+      - run: npm test
+
+  build:
+    name: Build artifacts
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      # Verify the three bundles and the build-info stamp were produced.
+      - run: |
+          test -f packages/shim/dist/shim-loader.js
+          test -f packages/ui/dist/ignis-ui.js
+          test -f apps/ignis-server/server/plugins/headless-sync/obsidian/dist/ignis-headless-sync.js
+          test -f apps/ignis-server/server/build-info.json
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: |
+            packages/shim/dist/
+            packages/ui/dist/
+            apps/ignis-server/server/build-info.json
+            apps/ignis-server/server/plugins/headless-sync/obsidian/dist/
+          retention-days: 7

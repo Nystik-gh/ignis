@@ -1,0 +1,73 @@
+name: Build & push image
+
+# Pushes the multi-arch image (linux/amd64 + linux/arm64) when a version tag
+# like v0.8.10 is created. Uses the repo's own build-image.js wrapper, which
+# reads the tag-matching version from package.json and drives buildx.
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      push:
+        description: "Push to registry (false = build+load only)"
+        type: boolean
+        default: true
+
+env:
+  IMAGE: nobbe/ignis
+
+jobs:
+  build:
+    name: Build & push ${{ env.IMAGE }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/setup-qemu-action@v3 # arm64 emulation; amd64 runs natively on ubuntu
+
+      - name: Login to GHCR
+        if: ${{ startsWith(github.ref, 'refs/tags/') || github.event.inputs.push == 'true' }}
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Login to Docker Hub (optional)
+        if: ${{ secrets.DOCKERHUB_USERNAME != '' }}
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Restore build cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/buildx
+          key: buildx-${{ github.sha }}
+          restore-keys: buildx-
+
+      # Local build+load when triggered manually with push=false; otherwise push.
+      - name: Build image
+        run: |
+          if [[ "${{ github.event.inputs.push }}" == "false" ]]; then
+            node apps/ignis-server/scripts/build-image.js --no-latest
+          else
+            node apps/ignis-server/scripts/build-image.js --push
+          fi
+        env:
+          IGNIS_IMAGE: ${{ env.IMAGE }}
+
+      - name: Verify architecture (when loaded locally)
+        if: ${{ github.event.inputs.push == 'false' }}
+        run: docker image inspect "${{ env.IMAGE }}:dev" --format '{{.Architecture}}'

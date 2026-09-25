@@ -21,3 +21,11 @@
   background-color: var(--background-secondary);
   color: var(--text-normal);
 }
+
+/* Mobile browser UI can make 100% taller than the visible viewport. Keep
+   Obsidian's fixed bottom nav inside the visible viewport. */
+@supports (height: 100dvh) {
+  body.is-phone {
+    height: 100dvh;
+  }
+}

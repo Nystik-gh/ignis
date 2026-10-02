@@ -8,6 +8,7 @@ import {
   patchSettingsModal,
   unpatchSettingsModal,
   refreshIgnisSettings,
+  reconcilePluginTabs,
 } from "./settings/inject.js";
 import { watchPluginToggles } from "./settings/plugin-list.js";
 import * as pluginRegistry from "./plugin-registry.js";
@@ -35,6 +36,10 @@ class IgnisBridgePlugin extends Plugin {
     patchSettingsModal(this);
     refreshIgnisSettings();
     this._pluginTogglesUnsub = watchPluginToggles();
+
+    this.registerDomEvent(window, "ignis:virtual-plugin-loaded", () => {
+      reconcilePluginTabs(this.app.setting);
+    });
     startDemoGuards();
     this._statusBarUnsub = initStatusBar(this);
     this._saveNoticeUnsub = initSaveNotice();

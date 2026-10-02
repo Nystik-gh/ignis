@@ -159,6 +159,12 @@ export function loadVirtualPlugin(entry) {
     await instance.onload();
 
     window.__ignis.plugins[entry.id] = { instance, manifest: entry.manifest };
+
+    window.dispatchEvent(
+      new CustomEvent("ignis:virtual-plugin-loaded", {
+        detail: { id: entry.id },
+      }),
+    );
   });
 }
 

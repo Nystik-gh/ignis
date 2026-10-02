@@ -1,12 +1,18 @@
 function groupSuggestions(suggestions) {
   const rows = new Map();
 
-  for (const { vault, pluginDir, fileCount, patterns } of suggestions) {
+  for (const {
+    vault,
+    pluginDir,
+    fileCount,
+    patterns,
+    covered,
+  } of suggestions) {
     const key = [pluginDir, ...patterns].join("\n");
     let row = rows.get(key);
 
     if (!row) {
-      row = { pluginDir, patterns, vaults: [] };
+      row = { pluginDir, patterns, covered: Boolean(covered), vaults: [] };
       rows.set(key, row);
     }
 
@@ -37,6 +43,7 @@ function suggestionRows(suggestions) {
     name: lastSegment(row.pluginDir),
     desc: describeVaults(row.vaults),
     values: row.patterns,
+    covered: row.covered,
   }));
 }
 
@@ -49,8 +56,8 @@ function pendingSuggestions(suggestions, rules) {
     }
   }
 
-  return suggestionRows(suggestions).filter((row) =>
-    row.values.some((value) => !lines.has(value)),
+  return suggestionRows(suggestions).filter(
+    (row) => !row.covered && row.values.some((value) => !lines.has(value)),
   );
 }
 

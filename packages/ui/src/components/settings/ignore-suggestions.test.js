@@ -17,6 +17,7 @@ describe("suggestionRows", () => {
         name: "icons",
         desc: "800 files in My Vault",
         values: [".obsidian/plugins/icons/icons"],
+        covered: false,
       },
     ]);
   });
@@ -103,7 +104,9 @@ describe("pendingSuggestions", () => {
 
     expect(pendingSuggestions(suggestions, covered)).toEqual([]);
 
-    const reduced = [{ name: "icons", patterns: [".obsidian/plugins/icons/a"] }];
+    const reduced = [
+      { name: "icons", patterns: [".obsidian/plugins/icons/a"] },
+    ];
 
     expect(pendingSuggestions(suggestions, reduced)).toHaveLength(1);
   });
@@ -119,5 +122,21 @@ describe("pendingSuggestions", () => {
     ];
 
     expect(pendingSuggestions(suggestions, rules)).toEqual([]);
+  });
+});
+
+describe("pendingSuggestions with a server-covered suggestion", () => {
+  it("hides a covered suggestion even when its lines are absent from the rules", () => {
+    const covered = [
+      {
+        vault: "My Vault",
+        pluginDir: ".obsidian/plugins/topology",
+        fileCount: 900,
+        patterns: [".obsidian/plugins/topology/node_modules"],
+        covered: true,
+      },
+    ];
+
+    expect(pendingSuggestions(covered, [])).toEqual([]);
   });
 });

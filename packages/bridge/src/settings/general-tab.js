@@ -321,12 +321,9 @@ function ignoreRulesField() {
           openIgnoreRulesEditor({
             rules,
             suggestions: current.ignoreSuggestions,
-            onChange: (edited) => {
+            onChange: async (edited) => {
               rules = edited;
               setLabel(btn);
-            },
-            onClose: async (edited) => {
-              rules = edited;
               await serverSettings.save({ ignoreRules: edited });
             },
           });
@@ -346,21 +343,12 @@ function openIgnoreRulesEditor(opts) {
     },
   });
 
-  let latest = opts.rules;
-  let dirty = false;
-
   component.$on("change", (event) => {
-    latest = event.detail;
-    dirty = true;
-    opts.onChange(latest);
+    opts.onChange(event.detail);
   });
 
   component.$on("close", () => {
     component.$destroy();
-
-    if (dirty) {
-      opts.onClose(latest);
-    }
   });
 }
 

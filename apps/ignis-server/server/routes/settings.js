@@ -201,9 +201,11 @@ router.post("/", async (req, res) => {
 
   await applySettings(effective, previous);
 
+  const ignoreSuggestions = bootstrapCache.ignoreSuggestions();
+
   invalidateBootstrap(clean, previous, effective);
 
-  res.json(effective);
+  res.json({ ...effective, ignoreSuggestions });
 });
 
 function invalidateBootstrap(clean, previous, effective) {

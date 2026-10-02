@@ -169,6 +169,14 @@ function initSyncStatusBar(plugin) {
     }
   });
 
+  function showVaultState(vault) {
+    if (vault.status === "running") {
+      updateState("synced");
+    } else {
+      updateState(vault.status, vault.error);
+    }
+  }
+
   const onStatus = (msg) => {
     const payload = msg.payload || {};
 
@@ -178,12 +186,7 @@ function initSyncStatusBar(plugin) {
 
     plugin.setVaultState(payload);
     item.style.display = "";
-
-    if (payload.status === "running") {
-      updateState("synced");
-    } else {
-      updateState(payload.status, payload.error);
-    }
+    showVaultState(payload);
   };
 
   const unsubStatus = channel.subscribe("sync-status", onStatus);
@@ -235,7 +238,7 @@ function initSyncStatusBar(plugin) {
 
     if (vault) {
       item.style.display = "";
-      updateState(vault.status, vault.error);
+      showVaultState(vault);
     }
   });
 
@@ -245,7 +248,8 @@ function initSyncStatusBar(plugin) {
   const unsubState = ws.onStateChange((state) => {
     const open = state === "open";
 
-    if (!open && currentStatus === "running") {
+    if (!open && (currentStatus === "running" || currentStatus === "synced")) {
+      cancelDeferredSynced();
       updateState("error", "Server connection lost");
       wasDisconnected = true;
     } else if (open && wasDisconnected) {
@@ -255,7 +259,7 @@ function initSyncStatusBar(plugin) {
         const vault = vaults?.find((v) => v.vaultId === vaultId);
 
         if (vault) {
-          updateState(vault.status, vault.error);
+          showVaultState(vault);
         }
       });
     }

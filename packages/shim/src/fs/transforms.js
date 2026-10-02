@@ -22,8 +22,8 @@ export function resolvePathInfo(path) {
       if (matcher(norm)) {
         const resolved = resolver(norm);
 
-        if (typeof resolved === "string" && resolved.length > 0) {
-          return { resolved, redirected: true };
+        if (typeof resolved === "string" && normalize(resolved).length > 0) {
+          return { resolved: normalize(resolved), redirected: true };
         }
       }
     } catch {}
@@ -36,65 +36,83 @@ export function resolvePath(path) {
   return resolvePathInfo(path).resolved;
 }
 
+function addTransform(list, target, fn) {
+  const path = typeof target === "function" ? undefined : normalize(target);
+  const matches = path === undefined ? target : (p) => p === path;
+
+  list.push({ path, matches, fn });
+}
+
+function removeTransform(list, path) {
+  const norm = normalize(path);
+
+  for (let i = list.length - 1; i >= 0; i--) {
+    if (list[i].path === norm) {
+      list.splice(i, 1);
+    }
+  }
+}
+
+function transformMatches(entry, norm) {
+  try {
+    return !!entry.matches(norm);
+  } catch {
+    return false;
+  }
+}
+
+function applyTransforms(list, path, data) {
+  const norm = normalize(path);
+  let result = data;
+
+  for (const entry of list) {
+    if (!transformMatches(entry, norm)) {
+      continue;
+    }
+
+    try {
+      result = entry.fn(result, norm);
+    } catch {}
+  }
+
+  return result;
+}
+
 // --- Read transforms ---
 
-const readTransforms = new Map();
+const readTransforms = [];
 
-export function registerReadTransform(path, fn) {
-  readTransforms.set(normalize(path), fn);
+export function registerReadTransform(target, fn) {
+  addTransform(readTransforms, target, fn);
 }
 
 export function removeReadTransform(path) {
-  readTransforms.delete(normalize(path));
+  removeTransform(readTransforms, path);
 }
 
 export function applyReadTransform(path, data) {
-  const fn = readTransforms.get(normalize(path));
-
-  if (!fn) {
-    return data;
-  }
-
-  try {
-    return fn(data);
-  } catch {
-    return data;
-  }
-}
-
-export function hasReadTransform(path) {
-  return readTransforms.has(normalize(path));
+  return applyTransforms(readTransforms, path, data);
 }
 
 // --- Write transforms ---
 
-const writeTransforms = new Map();
+const writeTransforms = [];
 
-export function registerWriteTransform(path, fn) {
-  writeTransforms.set(normalize(path), fn);
+export function registerWriteTransform(target, fn) {
+  addTransform(writeTransforms, target, fn);
 }
 
 export function removeWriteTransform(path) {
-  writeTransforms.delete(normalize(path));
+  removeTransform(writeTransforms, path);
 }
 
 export function applyWriteTransform(path, data) {
-  const fn = writeTransforms.get(normalize(path));
-
-  if (!fn) {
-    return data;
-  }
-
-  try {
-    return fn(data);
-  } catch {
-    return data;
-  }
+  return applyTransforms(writeTransforms, path, data);
 }
 
 // Test-only: clear all registered hooks.
 export function _reset() {
   pathResolvers.length = 0;
-  readTransforms.clear();
-  writeTransforms.clear();
+  readTransforms.length = 0;
+  writeTransforms.length = 0;
 }

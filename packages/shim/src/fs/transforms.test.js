@@ -33,6 +33,15 @@ describe("resolvePath", () => {
 
     expect(resolvePath("notes/foo.md")).toBe("notes/foo.md");
   });
+
+  it("normalizes the path a resolver returns", () => {
+    registerPathResolver(
+      (p) => p === "x.md",
+      () => "/dir\\x.md",
+    );
+
+    expect(resolvePath("x.md")).toBe("dir/x.md");
+  });
 });
 
 describe("applyReadTransform", () => {
@@ -67,6 +76,47 @@ describe("applyWriteTransform", () => {
     expect(applyWriteTransform(".obsidian/workspaces.json", input)).toBe(
       '{"active":"default"}',
     );
+  });
+});
+
+describe("transform matching", () => {
+  it("runs every transform registered for a path in registration order", () => {
+    registerReadTransform(".obsidian/app.json", (data) => `${data}a`);
+    registerReadTransform(".obsidian/app.json", (data) => `${data}b`);
+
+    expect(applyReadTransform(".obsidian/app.json", "x")).toBe("xab");
+  });
+
+  it("matches a predicate against the normalized path and passes it to the transform", () => {
+    registerReadTransform(
+      (p) => p.startsWith(".obsidian/workspace."),
+      (data, path) => `${path}:${data}`,
+    );
+
+    expect(applyReadTransform(".obsidian\\workspace.Work.json", "x")).toBe(
+      ".obsidian/workspace.Work.json:x",
+    );
+    expect(applyReadTransform(".obsidian/workspaces.json", "x")).toBe("x");
+  });
+
+  it("skips a transform whose predicate throws", () => {
+    registerWriteTransform(
+      () => {
+        throw new Error("boom");
+      },
+      (data) => `${data}!`,
+    );
+
+    expect(applyWriteTransform("notes/foo.md", "x")).toBe("x");
+  });
+
+  it("keeps the other transforms when one throws", () => {
+    registerReadTransform(".obsidian/app.json", () => {
+      throw new Error("boom");
+    });
+    registerReadTransform(".obsidian/app.json", (data) => `${data}b`);
+
+    expect(applyReadTransform(".obsidian/app.json", "x")).toBe("xb");
   });
 });
 

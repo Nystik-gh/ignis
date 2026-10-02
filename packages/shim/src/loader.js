@@ -4,6 +4,7 @@ import { installCssOverrides } from "./css-overrides.js";
 import { installEmulateMobile } from "./emulate-mobile.js";
 import { installMobileVaultSwitcher } from "./mobile-vault-switcher.js";
 import { installOpenFileParam } from "./open-file-param.js";
+import { installPopoutOverrides } from "./guards/popout-guard.js";
 import { initialize, getBootstrapVirtualPlugins } from "./init.js";
 import { fsShim } from "./fs/index.js";
 import { registerUI } from "./ui-registry.js";
@@ -85,7 +86,7 @@ wsClient.subscribe("write-giveup", (msg) => {
 });
 
 extractObsidianModule()
-  .then(async () => {
+  .then(async (obsidian) => {
     // window.app exists once Obsidian's module is extracted.
     if (
       window.app &&
@@ -93,6 +94,10 @@ extractObsidianModule()
       window.app.workspace.onLayoutReady
     ) {
       window.app.workspace.onLayoutReady(onLayoutReady);
+    }
+
+    if (obsidian) {
+      installPopoutOverrides(obsidian);
     }
 
     installMobileVaultSwitcher(window.app);

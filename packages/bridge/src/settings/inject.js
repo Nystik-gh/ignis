@@ -5,7 +5,6 @@ import * as serverPluginsTab from "./server-plugins-tab.js";
 import * as serverSettings from "./server-settings.js";
 import * as pluginList from "./plugin-list.js";
 import { IgnisSettingTab, createNavEl, createGroup } from "./settings-ui.js";
-import { isDemoMode } from "../demo-guards.js";
 import {
   allIgnisNavEls,
   setupPluginTabs,
@@ -45,9 +44,7 @@ function createIgnisTabs(app) {
 }
 
 function refreshIgnisSettings() {
-  const stores = isDemoMode() ? [pluginList] : [serverSettings, pluginList];
-
-  for (const store of stores) {
+  for (const store of [serverSettings, pluginList]) {
     store.refresh().then((changed) => {
       if (!changed) {
         return;

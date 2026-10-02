@@ -162,7 +162,7 @@ describe("loadVirtualPlugin", () => {
         dispatched.push({
           type: event.type,
           id: event.detail.id,
-          registered: Boolean(window.__ignis.plugins["ignis-demo"]),
+          registered: Boolean(window.__ignis.plugins["sample-plugin"]),
         });
       },
     };
@@ -174,15 +174,15 @@ describe("loadVirtualPlugin", () => {
     }));
 
     await loadVirtualPlugin({
-      id: "ignis-demo",
-      scriptUrl: "/ignis-demo.js",
-      manifest: { id: "ignis-demo" },
+      id: "sample-plugin",
+      scriptUrl: "/sample-plugin.js",
+      manifest: { id: "sample-plugin" },
     });
 
     expect(dispatched).toEqual([
       {
         type: "ignis:virtual-plugin-loaded",
-        id: "ignis-demo",
+        id: "sample-plugin",
         registered: true,
       },
     ]);

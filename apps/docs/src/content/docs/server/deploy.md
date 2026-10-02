@@ -152,7 +152,3 @@ Ignis will unpack the local copy instead of downloading. The package must be the
 ### Backups
 
 Your vaults are ordinary files under `vaults`. Back them up with whatever you use for other server data. Ignis has no built-in backup.
-
-### Running a public demo
-
-To run a public, throwaway demo instance instead of a private server, see [`examples/demo/`](https://github.com/Nystik-gh/ignis/tree/main/apps/ignis-server/examples/demo) in the repository.

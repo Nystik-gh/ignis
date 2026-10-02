@@ -12,7 +12,6 @@ import { prefetchVaultContent } from "./fs/indexer-prefetch.js";
 import { setInputCacheLimits } from "./fs/input-cache.js";
 import { setSilentByDefault } from "./fs/write-durability.js";
 import { setDirectFetchHosts } from "./util/url.js";
-import { autoTrustDemoVaults, maybeProvisionDemoVault } from "./demo.js";
 import { initNativeMenuGuard } from "./guards/native-menu-guard.js";
 import { initSettingsWindowGuard } from "./guards/settings-window-guard.js";
 import { initSpellcheckGuard } from "./guards/spellcheck-guard.js";
@@ -268,11 +267,6 @@ function resolveWorkspaceAndAppearance() {
 }
 
 export function initialize() {
-  if (maybeProvisionDemoVault()) {
-    window.__ignisBootReady = Promise.resolve();
-    return;
-  }
-
   resolveVaultId();
 
   const bootstrap = fetchBootstrap();
@@ -280,7 +274,6 @@ export function initialize() {
   if (bootstrap) {
     applyVaultInfo(bootstrap.vault);
     window.__vaultList = bootstrap.vaultList;
-    autoTrustDemoVaults(bootstrap.vaultList);
     applyTree(bootstrap.tree);
     fsShim._watcherClient.setTreeEtag(bootstrap.etag);
     applyCoreSyncGuard(bootstrap.plugins);

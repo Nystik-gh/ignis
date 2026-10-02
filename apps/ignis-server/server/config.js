@@ -131,15 +131,6 @@ module.exports = {
     return vaults;
   },
 
-  demoMode: process.env.DEMO_MODE === "true",
-  demoMaxSessions: parseInt(process.env.DEMO_MAX_SESSIONS) || 20,
-  demoVaultsPerSession: parseInt(process.env.DEMO_VAULTS_PER_SESSION) || 3,
-  demoSessionQuotaBytes:
-    parseInt(process.env.DEMO_SESSION_QUOTA_BYTES) || 700 * 1024,
-  demoTimeoutMs: parseInt(process.env.DEMO_TIMEOUT_MS) || 30 * 60 * 1000,
-  demoTemplateDir:
-    process.env.DEMO_TEMPLATE_DIR || path.join(__dirname, "demo-template"),
-
   // 0 = disabled
   headlessSyncIdleRestartMs:
     parseInt(process.env.HEADLESS_SYNC_IDLE_RESTART_MS) || 0,

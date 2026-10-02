@@ -1,5 +1,4 @@
 import { setIcon } from "obsidian";
-import { isDemoMode } from "../demo-guards.js";
 import { checkForUpdate } from "../update-check.js";
 import * as serverSettings from "./server-settings.js";
 import { numberField, listField } from "./server-setting-fields.js";
@@ -147,20 +146,6 @@ const MB = 1024 * 1024;
 const MINUTE = 60 * 1000;
 
 function serverSettingsGroups(tab) {
-  if (isDemoMode()) {
-    return [
-      {
-        type: "group",
-        items: [
-          {
-            name: "Server settings",
-            desc: "Server settings are disabled in demo mode.",
-          },
-        ],
-      },
-    ];
-  }
-
   if (!serverSettings.get()) {
     return [
       {

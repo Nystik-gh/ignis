@@ -16,7 +16,6 @@ import { initStatusBar } from "./status-bar.js";
 import { initSaveNotice } from "./notices/save-notice.js";
 import { installLoadingGate } from "./loading-gate.js";
 import { registerCommands } from "./commands/index.js";
-import { startDemoGuards, stopDemoGuards } from "./demo-guards.js";
 import { initInsecureApiNotice } from "./notices/insecure-api-notice.js";
 import { initProxyBlockNotice } from "./notices/proxy-block-notice.js";
 import { initWriteGiveupNotice } from "./notices/write-giveup-notice.js";
@@ -25,11 +24,6 @@ import { installReadingLock } from "./reading-lock.js";
 
 class IgnisBridgePlugin extends Plugin {
   async onload() {
-    if (!window.__ignis) {
-      console.log("[ignis-bridge] Not running in Ignis - plugin is a no-op.");
-      return;
-    }
-
     console.log("[ignis-bridge] Plugin loaded");
 
     await pluginRegistry.refresh();
@@ -40,7 +34,7 @@ class IgnisBridgePlugin extends Plugin {
     this.registerDomEvent(window, "ignis:virtual-plugin-loaded", () => {
       reconcilePluginTabs(this.app.setting);
     });
-    startDemoGuards();
+
     this._statusBarUnsub = initStatusBar(this);
     this._saveNoticeUnsub = initSaveNotice();
     this._loadingGateUnsub = installLoadingGate();
@@ -76,10 +70,6 @@ class IgnisBridgePlugin extends Plugin {
   }
 
   onunload() {
-    if (!window.__ignis) {
-      return;
-    }
-
     if (this._statusBarUnsub) {
       this._statusBarUnsub();
     }
@@ -113,7 +103,6 @@ class IgnisBridgePlugin extends Plugin {
     }
 
     unpatchSettingsModal(this);
-    stopDemoGuards();
     console.log("[ignis-bridge] Plugin unloaded");
   }
 }

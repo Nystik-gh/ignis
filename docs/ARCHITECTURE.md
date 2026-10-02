@@ -20,7 +20,6 @@ Ignis runs Obsidian in a browser by replacing its Electron backend with a shim l
   - [Obsidian Plugins](#obsidian-plugins)
   - [Ignis Plugins](#ignis-plugins)
   - [Virtual Plugins](#virtual-plugins)
-- [Demo mode](#demo-mode)
 
 ## Overview
 
@@ -107,7 +106,7 @@ Obsidian on the desktop can make arbitrary cross-origin HTTP requests because it
 
 The shim handles this transparently. `window.fetch` and `window.requestUrl` are intercepted. Same-origin requests pass through unchanged, as do requests to hosts on the user-configured direct-fetch allowlist, which the browser fetches directly subject to its own CORS enforcement. All other cross-origin requests are POSTed to `/api/proxy`, which performs the outbound call from the server with headers that mimic Obsidian's desktop runtime: `Origin: app://obsidian.md` and the browser's own User-Agent. The response body is returned base64-encoded so binary content survives the JSON round-trip; the shim decodes it and hands the caller a normal `Response` or `requestUrl` result.
 
-The proxy itself is intentionally generic. It forwards method, headers, and body verbatim and returns whatever the upstream sent. It rejects requests whose hostname resolves to a private, loopback, or link-local address (SSRF guard) unless that address is listed in `PROXY_ALLOW_PRIVATE_HOSTS`. Redirects are followed on the server one hop at a time so every hop passes the same check. Outbound access is governed by `proxyMode`: `any` (the default) reaches any public host, `allowlist` restricts to a configured host list, and `disabled` blocks all proxying; demo mode pins it to `allowlist`. Under the default `any`, the proxy is an open relay to public hosts, which is one of the reasons the server needs to be behind authentication when exposed to the internet.
+The proxy itself is intentionally generic. It forwards method, headers, and body verbatim and returns whatever the upstream sent. It rejects requests whose hostname resolves to a private, loopback, or link-local address (SSRF guard) unless that address is listed in `PROXY_ALLOW_PRIVATE_HOSTS`. Redirects are followed on the server one hop at a time so every hop passes the same check. Outbound access is governed by `proxyMode`: `any` (the default) reaches any public host, `allowlist` restricts to a configured host list, and `disabled` blocks all proxying. Under the default `any`, the proxy is an open relay to public hosts, which is one of the reasons the server needs to be behind authentication when exposed to the internet.
 
 ### Workspaces in browser tabs
 
@@ -132,7 +131,6 @@ The bridge contributes:
 - **Runtime warnings**: listens for the shim's `ignis:insecure-api` and `ignis:proxy-blocked` events and shows a Notice for each, rate limited so retry loops don't spam. For a blocked proxy connection the Notice has a Details button that opens a modal explaining how to unblock it (`insecure-api-notice.js`, `proxy-block-notice.js`). The Ignis settings tab also shows a warning when the connection is insecure.
 - **Settings injection**: monkey-patches `app.setting.onOpen` to add Ignis' settings tabs in their own "Ignis" sidebar group. Each enabled Ignis plugin's companion is pulled into a separate "Ignis Core Plugins" sidebar group.
 - **Dev flags**: two server flags, delivered with the bootstrap, for vaults on a read-only mount. `DEV_FORCE_READING_VIEW` pins every markdown view to reading mode (`reading-lock.js`); `DEV_SUPPRESS_WRITE_FAILURES` disables write failure notices.
-- **Demo guards**: in demo mode, a MutationObserver disables every email/password input that appears anywhere in the document.
 
 ## Vaults
 
@@ -180,20 +178,3 @@ The one Ignis plugin currently in the repo is **headless-sync** (`apps/ignis-ser
 The client-side companion of an Ignis plugin: a standard Obsidian plugin (a `manifest.json` plus a bundled script) that Ignis loads in the browser rather than installing to disk. The virtual-plugin-loader (`packages/shim/src/virtual-plugin-loader.js`) fetches the bundle from the server, evals it, instantiates the plugin class against the live `app`. Loaded instances are tracked in `window.__ignis.plugins` and can be toggled per vault. Nothing is ever written to `.obsidian/plugins/`.
 
 headless-sync's companion (`ignis-headless-sync`) adds a status bar item, a settings tab with the sync controls, configuration, and log, and a core-sync guard that hides Obsidian's own Sync setting from `core-plugins.json` reads while headless sync is active for that vault, so a different device syncing the "Active core plugins list" can't accidentally re-enable it.
-
-## Demo mode
-
-A separate operating mode for running Ignis as a public-facing demo. Enabled by `DEMO_MODE=true`. When off, none of the demo code runs and the server behaves normally.
-
-In demo mode, each visitor gets a session identified by a cookie. Their vaults are stored on disk under a session-prefixed name (`demo-<sessionId>__<userVaultName>`) to avoid naming collisons; demo middleware translates inbound `?vault=X` and request bodies, and rewrites vault id/name fields in JSON responses on the way out.
-
-The bootstrap endpoint's pre-compressed buffer path is bypassed in demo mode so the response wrapper can rewrite per-session names.
-
-Other demo behaviors:
-- Per-session caps on vault count and cumulative bytes, returning 507 when exceeded.
-- Proxy allowlist limiting `/api/proxy` to a known-safe set of hosts (no `obsidian.md`/`api.obsidian.md` so account login attempts fail at the network layer).
-- A `setInterval` cleanup that removes inactive sessions and orphaned `demo-*` directories, with a recovery redirect that sends users to `/` if their requested vault was wiped under them.
-- Server-side plugins (e.g. headless-sync) hidden from the client; enable/disable returns 403.
-- The bridge plugin disables any `<input type="email">` or `<input type="password">` it sees anywhere in the document, with a placeholder telling users not to enter credentials.
-
-All server-side demo code lives in `apps/ignis-server/server/demo/`. The client-side hooks live in `packages/shim/src/demo.js`. The deployment example is in `apps/ignis-server/examples/demo/` (tmpfs-mounted vaults, restricted proxy, all the env vars).

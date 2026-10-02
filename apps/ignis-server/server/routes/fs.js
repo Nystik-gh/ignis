@@ -602,11 +602,6 @@ router.get("/tree", async (req, res) => {
       return res.status(304).end();
     }
 
-    // The demo response rewriter mutates in place.
-    if (req._demoSessionId) {
-      return res.json(JSON.parse(JSON.stringify(entry.response.tree)));
-    }
-
     res.json(entry.response.tree);
   } catch (e) {
     res.status(500).json(sanitizeError(e));

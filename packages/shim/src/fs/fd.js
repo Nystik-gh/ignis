@@ -3,11 +3,14 @@
 import { isInputCachePath, inputCacheGet } from "./input-cache.js";
 import { resolvePath } from "./transforms.js";
 import { hasVirtualFile, getVirtualFile } from "./virtual-files.js";
+import { checkTimes, createUtimes } from "./utimes.js";
 
 let nextFd = 100;
 const openFiles = new Map();
 
 export function createFdOps(metadataCache, contentCache, transport) {
+  const commitUtimes = createUtimes(metadataCache, transport);
+
   function ensureData(path) {
     // Check input cache first for files picked via browser file dialogs.
     if (isInputCachePath(path)) {
@@ -121,6 +124,10 @@ export function createFdOps(metadataCache, contentCache, transport) {
     };
   }
 
+  function futimesSync(fd, atime, mtime) {
+    commitUtimes(getEntry(fd).path, atime, mtime);
+  }
+
   // --- Async (callback style) ---
 
   function open(path, flags, modeOrCb, cb) {
@@ -172,14 +179,31 @@ export function createFdOps(metadataCache, contentCache, transport) {
     }
   }
 
+  function futimes(fd, atime, mtime, cb) {
+    checkTimes(atime, mtime);
+
+    let touched;
+
+    try {
+      touched = commitUtimes(getEntry(fd).path, atime, mtime);
+    } catch (e) {
+      queueMicrotask(() => cb(e));
+      return;
+    }
+
+    touched.then(() => cb(null));
+  }
+
   return {
     openSync,
     readSync,
     closeSync,
     fstatSync,
+    futimesSync,
     open,
     read,
     close,
     fstat,
+    futimes,
   };
 }

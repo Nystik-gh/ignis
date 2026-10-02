@@ -55,6 +55,7 @@ export const fsShim = {
   copyFileSync: fsSync.copyFileSync,
   appendFileSync: fsSync.appendFileSync,
   utimesSync: fsSync.utimesSync,
+  lutimesSync: fsSync.lutimesSync,
   chmodSync: fsSync.chmodSync,
 
   realpath,
@@ -68,6 +69,8 @@ export const fsShim = {
   closeSync: fdOps.closeSync,
   fstat: fdOps.fstat,
   fstatSync: fdOps.fstatSync,
+  futimes: fdOps.futimes,
+  futimesSync: fdOps.futimesSync,
 
   watch: fsWatch.watch,
   constants,

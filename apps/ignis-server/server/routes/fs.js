@@ -490,19 +490,35 @@ router.post("/utimes", async (req, res) => {
   }
 
   try {
+    await flushPending(resolved);
     await fs.promises.utimes(
       resolved,
       req.body.atime / 1000,
       req.body.mtime / 1000,
     );
 
-    const rel = toRelative(req._vaultRoot, resolved);
+    const stat = await fs.promises.stat(resolved);
 
-    res.json({ ok: true });
+    if (stat.isDirectory()) {
+      res.json({ type: "directory" });
+      return;
+    }
 
-    applyToTree(req, { type: "modified", path: rel });
+    const times = {
+      size: stat.size,
+      mtime: stat.mtimeMs,
+      ctime: creationTime(stat),
+    };
+
+    res.json({ type: "file", ...times });
+
+    applyToTree(req, {
+      type: "modified",
+      path: toRelative(req._vaultRoot, resolved),
+      stat: times,
+    });
   } catch (e) {
-    res.status(500).json(sanitizeError(e));
+    res.status(e.code === "ENOENT" ? 404 : 500).json(sanitizeError(e));
   }
 });
 

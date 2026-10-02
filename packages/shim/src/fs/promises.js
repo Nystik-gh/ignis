@@ -314,7 +314,11 @@ export function createFsPromises(metadataCache, contentCache, transport) {
     },
 
     async utimes(path, atime, mtime) {
-      commitUtimes(path, atime, mtime);
+      await commitUtimes(path, atime, mtime);
+    },
+
+    async lutimes(path, atime, mtime) {
+      await commitUtimes(path, atime, mtime);
     },
 
     async chmod() {
@@ -359,6 +363,10 @@ export function createFsPromises(metadataCache, contentCache, transport) {
           buffer.set(slice, offset);
 
           return { bytesRead: available, buffer };
+        },
+
+        async utimes(atime, mtime) {
+          await commitUtimes(path, atime, mtime);
         },
 
         async close() {

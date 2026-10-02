@@ -2,10 +2,17 @@
 // The WebSocket itself is owned by ws-client.js; this module is a consumer.
 
 import { isRecentSentOp, sentOpCount } from "./echo-guard.js";
+import { hasUnconfirmedWrite } from "./write-coalescer.js";
 import { normalize } from "../util/path.js";
 
 const RESYNC_DEBOUNCE_MS = 1000;
 const METADATA_CHANNEL = "metadata";
+
+function parentDir(path) {
+  const lastSlash = path.lastIndexOf("/");
+
+  return lastSlash < 0 ? "" : path.slice(0, lastSlash);
+}
 
 export function createWatcherClient(
   metadataCache,
@@ -14,10 +21,43 @@ export function createWatcherClient(
   wsClient,
   transport,
 ) {
+  function hasLocalChange(path) {
+    return isRecentSentOp(path) || hasUnconfirmedWrite(path);
+  }
+
+  function deleteSubtreeExceptUnconfirmed(dir) {
+    const norm = normalize(dir);
+    const subtree = metadataCache
+      .keys()
+      .filter((key) => key === norm || key.startsWith(norm + "/"));
+    const kept = new Set();
+
+    for (const key of subtree) {
+      if (!hasUnconfirmedWrite(key)) {
+        continue;
+      }
+
+      // keep full parent dir structure
+      for (let p = key; p !== norm; p = parentDir(p)) {
+        kept.add(p);
+      }
+
+      kept.add(norm);
+    }
+
+    const removed = subtree.filter((key) => !kept.has(key));
+
+    for (const key of removed) {
+      metadataCache.delete(key);
+    }
+
+    return removed;
+  }
+
   function handleCreated(msg) {
     const { path, stat } = msg;
 
-    if (!path || isRecentSentOp(path)) {
+    if (!path || hasLocalChange(path)) {
       return false;
     }
 
@@ -39,7 +79,7 @@ export function createWatcherClient(
   function handleFolderCreated(msg) {
     const { path } = msg;
 
-    if (!path || isRecentSentOp(path)) {
+    if (!path || hasLocalChange(path)) {
       return false;
     }
 
@@ -52,7 +92,7 @@ export function createWatcherClient(
   function handleModified(msg) {
     const { path, stat } = msg;
 
-    if (!path || isRecentSentOp(path)) {
+    if (!path || hasLocalChange(path)) {
       return false;
     }
 
@@ -74,7 +114,7 @@ export function createWatcherClient(
   function handleDeleted(msg) {
     const { path } = msg;
 
-    if (!path || isRecentSentOp(path)) {
+    if (!path || hasLocalChange(path)) {
       return false;
     }
 
@@ -86,7 +126,7 @@ export function createWatcherClient(
     let removed;
 
     if (meta && meta.type === "directory") {
-      removed = metadataCache.deleteSubtree(path);
+      removed = deleteSubtreeExceptUnconfirmed(path);
     } else {
       metadataCache.delete(path);
       removed = [path];
@@ -210,7 +250,12 @@ export function createWatcherClient(
   });
 
   metadataChannel.subscribe("replaced", () => {
-    scheduleResync();
+    if (resyncTimer) {
+      clearTimeout(resyncTimer); // drop the resync queued by the socket's open event
+      resyncTimer = null;
+    }
+
+    resync();
   });
 
   function connect(vaultId) {

@@ -305,6 +305,12 @@ export function trackWrite(path, opts) {
   };
 }
 
+export function hasWriteInProgress(path) {
+  const entry = entries.get(path);
+
+  return !!entry && entry.status !== "failed";
+}
+
 export function getState() {
   return state;
 }

@@ -1,7 +1,8 @@
 // Coalesces boot-window writes per path so they flush in a few round-trips instead of one per save.
 
 import { markSentOp } from "./echo-guard.js";
-import { trackWrite } from "./write-durability.js";
+import { hasWriteInProgress, trackWrite } from "./write-durability.js";
+import { normalize } from "../util/path.js";
 
 const QUIET_MS = 100; // flush a path this long after its last write
 const MAX_WAIT_MS = 2000; // but never hold a buffered write longer than this
@@ -134,6 +135,12 @@ export function cancelPending(path) {
 
 export function hasPending(path) {
   return pending.has(path);
+}
+
+export function hasUnconfirmedWrite(path) {
+  const norm = normalize(path);
+
+  return pending.has(norm) || tails.has(norm) || hasWriteInProgress(norm);
 }
 
 function flushAll() {

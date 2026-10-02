@@ -124,6 +124,8 @@ export function createFsPromises(metadataCache, contentCache, transport) {
       }
 
       if (result === null) {
+        const pathUpdatesBefore = contentCache.pathUpdates(resolved);
+
         try {
           result = await transport.readFile(resolved, encoding);
         } catch (e) {
@@ -134,7 +136,7 @@ export function createFsPromises(metadataCache, contentCache, transport) {
           }
         }
 
-        contentCache.set(resolved, result);
+        contentCache.setFromServer(resolved, result, pathUpdatesBefore);
       }
 
       // Apply registered read transforms (e.g., patching synced config files).

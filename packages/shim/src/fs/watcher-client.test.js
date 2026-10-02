@@ -2,6 +2,8 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { createWatcherClient } from "./watcher-client.js";
 import { markSentOp } from "./echo-guard.js";
 import { MetadataCache } from "./metadata-cache.js";
+import { bufferWrite, cancelPending } from "./write-coalescer.js";
+import { trackWrite, _reset as resetDurability } from "./write-durability.js";
 
 const RESYNC_DEBOUNCE_MS = 1000;
 
@@ -302,16 +304,15 @@ describe("watcher-client revision channel", () => {
     expect(d.transport.fetchTree).toHaveBeenCalledWith('"a-1"');
   });
 
-  it("resyncs on a replacement even at the revision it holds", async () => {
+  it("resyncs at once on a replacement, even at the revision it holds", () => {
     const d = atRevision('"a-1"');
 
     handlerOf(d, "replaced")({ etag: '"a-1"' });
-    await vi.advanceTimersByTimeAsync(RESYNC_DEBOUNCE_MS);
 
     expect(d.transport.fetchTree).toHaveBeenCalledWith('"a-1"');
   });
 
-  it("coalesces an announcement into the resync a socket open scheduled", async () => {
+  it("folds a pending resync from a socket open into the replacement resync", async () => {
     const d = atRevision('"a-1"');
 
     d.wsClient.onOpen.mock.calls[0][0]();
@@ -663,5 +664,101 @@ describe("watcher-client repopulation after a stale-tree delete", () => {
 
       expect(cache.has("live.md")).toBe(false);
     });
+  });
+});
+
+describe("watcher-client unconfirmed writes", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
+
+  afterEach(() => {
+    resetDurability();
+    vi.useRealTimers();
+  });
+
+  function seeded(entries) {
+    const cache = new MetadataCache();
+
+    for (const [path, meta] of Object.entries(entries)) {
+      cache.set(path, meta);
+    }
+
+    return { cache, d: makeDeps(cache) };
+  }
+
+  function retrying(path) {
+    trackWrite(path).failure("local", "utf-8", null);
+  }
+
+  it("leaves a file alone on a resync while its write retries", async () => {
+    const { cache, d } = seeded({
+      "note.md": { type: "file", size: 5, mtime: 100 },
+    });
+
+    retrying("note.md");
+    await resyncWith(d, { "note.md": { type: "file", size: 9, mtime: 999 } });
+
+    expect(cache.get("note.md").mtime).toBe(100);
+    expect(d.contentCache.invalidate).not.toHaveBeenCalledWith("note.md");
+    expect(d.fsWatch._dispatch).not.toHaveBeenCalled();
+  });
+
+  it("keeps a file the server has not seen yet on a resync", async () => {
+    const { cache, d } = seeded({
+      "new.md": { type: "file", size: 5, mtime: 100 },
+    });
+
+    retrying("new.md");
+    await resyncWith(d, {});
+
+    expect(cache.has("new.md")).toBe(true);
+    expect(d.fsWatch._dispatch).not.toHaveBeenCalled();
+  });
+
+  it("keeps a new file and its dirs when a resync drops their dir", async () => {
+    const { cache, d } = seeded({
+      dir: { type: "directory" },
+      "dir/sub": { type: "directory" },
+      "dir/sub/new.md": { type: "file", size: 5, mtime: 100 },
+      "dir/old.md": { type: "file", size: 5, mtime: 100 },
+    });
+
+    retrying("dir/sub/new.md");
+    await resyncWith(d, {});
+
+    expect(cache.has("dir")).toBe(true);
+    expect(cache.has("dir/sub")).toBe(true);
+    expect(cache.has("dir/sub/new.md")).toBe(true);
+    expect(cache.has("dir/old.md")).toBe(false);
+    expect(d.fsWatch._dispatch.mock.calls).toEqual([["deleted", "dir/old.md"]]);
+  });
+
+  it("skips a live change to a file with a buffered boot write", () => {
+    const { cache, d } = seeded({
+      "note.md": { type: "file", size: 5, mtime: 100 },
+    });
+    const onModified = d.wsClient.subscribe.mock.calls.find(
+      (c) => c[0] === "modified",
+    )[1];
+
+    bufferWrite("note.md", "local", "utf-8", null);
+    onModified({ path: "note.md", stat: { size: 9, mtime: 999, ctime: 1 } });
+    cancelPending("note.md");
+
+    expect(cache.get("note.md").mtime).toBe(100);
+    expect(d.fsWatch._dispatch).not.toHaveBeenCalled();
+  });
+
+  it("applies a resync to the file once its write is confirmed", async () => {
+    const { cache, d } = seeded({
+      "note.md": { type: "file", size: 5, mtime: 100 },
+    });
+
+    trackWrite("note.md").success();
+    await resyncWith(d, { "note.md": { type: "file", size: 9, mtime: 999 } });
+
+    expect(cache.get("note.md").mtime).toBe(999);
+    expect(d.fsWatch._dispatch).toHaveBeenCalledWith("modified", "note.md");
   });
 });

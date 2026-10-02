@@ -129,6 +129,25 @@ describe("retry on failure", () => {
   });
 });
 
+describe("hasWriteInProgress", () => {
+  it("tracks a write while it retries but not once it gives up", async () => {
+    transport.writeFile.mockRejectedValue(new Error("offline"));
+
+    const track = wd.trackWrite("a.md");
+    track.failure("d", "utf-8", null);
+    await vi.advanceTimersByTimeAsync(1000);
+
+    expect(wd.hasWriteInProgress("a.md")).toBe(true);
+
+    for (let i = 0; i < 9; i++) {
+      await vi.advanceTimersByTimeAsync(30000);
+    }
+
+    expect(wd.listFailed()).toEqual(["a.md"]);
+    expect(wd.hasWriteInProgress("a.md")).toBe(false);
+  });
+});
+
 describe("silent (config) writes", () => {
   it("never contributes to the user-facing state or detail", () => {
     const seen = [];

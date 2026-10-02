@@ -9,11 +9,18 @@ import { createFdOps } from "./fd.js";
 import { createFsCallbacks } from "./callback.js";
 import { realpath, realpathSync } from "./realpath.js";
 import { constants } from "./constants.js";
-import { registerReadTransform, removeReadTransform, resolvePath } from "./transforms.js";
+import {
+  registerReadTransform,
+  removeReadTransform,
+  resolvePath,
+} from "./transforms.js";
+import { hasUnconfirmedWrite } from "./write-coalescer.js";
 import { wsClient } from "../ws-client.js";
 
 const metadataCache = new MetadataCache();
 const contentCache = new ContentCache();
+
+contentCache.retainWhile(hasUnconfirmedWrite);
 
 const fsPromises = createFsPromises(metadataCache, contentCache, transport);
 const fsSync = createFsSync(metadataCache, contentCache, transport);

@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { prefetchVaultContent } from "./indexer-prefetch.js";
+import { ContentCache } from "./content-cache.js";
 
 const MB = 1024 * 1024;
 
@@ -24,7 +25,15 @@ let fetchCalls;
 
 function makeCache() {
   const store = new Map();
-  return { store, set: (path, content) => store.set(path, content) };
+
+  return {
+    store,
+    pathUpdates: () => 0,
+    setFromServer: (path, content) => {
+      store.set(path, content);
+      return true;
+    },
+  };
 }
 
 beforeEach(() => {
@@ -377,5 +386,54 @@ describe("prefetchVaultContent file and byte caps", () => {
     const all = fetchCalls.flat();
     expect(all).toContain(".obsidian/plugins/a/main.js");
     expect(all).not.toContain("Note.md");
+  });
+});
+
+describe("prefetchVaultContent racing a write", () => {
+  const note = { "Note.md": { type: "file", size: 6 } };
+
+  function holdBatch() {
+    const held = {};
+
+    globalThis.fetch = vi.fn(
+      () =>
+        new Promise((resolve) => {
+          held.release = () =>
+            resolve({
+              ok: true,
+              json: async () => ({ files: { "Note.md": "server" } }),
+            });
+        }),
+    );
+
+    return held;
+  }
+
+  it("keeps content written while the batch was in flight", async () => {
+    const held = holdBatch();
+    const cache = new ContentCache();
+    const result = prefetchVaultContent("v", note, cache);
+
+    await vi.waitFor(() => expect(globalThis.fetch).toHaveBeenCalled());
+    cache.set("Note.md", "local");
+    held.release();
+    await result.bulk;
+
+    expect(cache.get("Note.md")).toBe("local");
+  });
+
+  it("keeps content cached before the batch was sent", async () => {
+    const held = holdBatch();
+    const cache = new ContentCache();
+
+    cache.set("Note.md", "local");
+
+    const result = prefetchVaultContent("v", note, cache);
+
+    await vi.waitFor(() => expect(globalThis.fetch).toHaveBeenCalled());
+    held.release();
+    await result.bulk;
+
+    expect(cache.get("Note.md")).toBe("local");
   });
 });

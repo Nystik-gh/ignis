@@ -12,13 +12,13 @@ import {
 import { watchPluginToggles } from "./settings/plugin-list.js";
 import * as pluginRegistry from "./plugin-registry.js";
 import { initStatusBar } from "./status-bar.js";
-import { initSaveNotice } from "./save-notice.js";
+import { initSaveNotice } from "./notices/save-notice.js";
 import { installLoadingGate } from "./loading-gate.js";
 import { registerCommands } from "./commands/index.js";
 import { startDemoGuards, stopDemoGuards } from "./demo-guards.js";
-import { initInsecureApiNotice } from "./insecure-api-notice.js";
-import { initProxyBlockNotice } from "./proxy-block-notice.js";
-import { initWriteGiveupNotice } from "./write-giveup-notice.js";
+import { initInsecureApiNotice } from "./notices/insecure-api-notice.js";
+import { initProxyBlockNotice } from "./notices/proxy-block-notice.js";
+import { initWriteGiveupNotice } from "./notices/write-giveup-notice.js";
 import { initImageRetry } from "./image-retry.js";
 import { installReadingLock } from "./reading-lock.js";
 

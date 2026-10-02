@@ -17,10 +17,10 @@ const {
   getPending,
   estimateSize,
   pendingBuffer,
-  cancelPending,
   flushPending,
-  cancelPendingSubtree,
   flushPendingSubtree,
+  supersedePending,
+  supersedePendingSubtree,
 } = writeCoalescer;
 const bootstrapCache = require("../cache");
 
@@ -297,10 +297,9 @@ router.post("/mkdir", async (req, res) => {
   }
 
   try {
-    await fs.promises.mkdir(resolved, {
-      recursive: !!req.body.recursive,
-    });
-    cancelPending(resolved);
+    await supersedePending(resolved, () =>
+      fs.promises.mkdir(resolved, { recursive: !!req.body.recursive }),
+    );
 
     const rel = toRelative(req._vaultRoot, resolved);
 
@@ -333,9 +332,10 @@ router.post("/rename", async (req, res) => {
 
   try {
     await flushPendingSubtree(oldResolved);
-    await fs.promises.rename(oldResolved, newResolved);
     // Drop the destination's buffer so a stale write cannot land on the renamed file.
-    cancelPending(newResolved);
+    await supersedePending(newResolved, () =>
+      fs.promises.rename(oldResolved, newResolved),
+    );
 
     res.json({ ok: true });
 
@@ -373,8 +373,9 @@ router.post("/copyFile", async (req, res) => {
 
   try {
     await flushPending(srcResolved);
-    await fs.promises.copyFile(srcResolved, destResolved);
-    cancelPending(destResolved);
+    await supersedePending(destResolved, () =>
+      fs.promises.copyFile(srcResolved, destResolved),
+    );
 
     res.json({ ok: true });
 
@@ -398,23 +399,20 @@ router.delete("/unlink", async (req, res) => {
   const rel = toRelative(req._vaultRoot, resolved);
 
   try {
-    await fs.promises.unlink(resolved);
-    cancelPending(resolved);
+    await supersedePending(resolved, () =>
+      fs.promises.unlink(resolved).catch((e) => {
+        // already gone counts as deleted
+        if (e.code !== "ENOENT") {
+          throw e;
+        }
+      }),
+    );
 
     res.json({ ok: true });
 
     applyToTree(req, { type: "deleted", path: rel });
   } catch (e) {
-    if (e.code === "ENOENT") {
-      // File already gone; drop any buffered write so the flush cannot re-create it.
-      cancelPending(resolved);
-
-      res.json({ ok: true });
-
-      applyToTree(req, { type: "deleted", path: rel });
-    } else {
-      res.status(500).json(sanitizeError(e));
-    }
+    res.status(500).json(sanitizeError(e));
   }
 });
 
@@ -427,8 +425,7 @@ router.delete("/rmdir", async (req, res) => {
   }
 
   try {
-    await fs.promises.rmdir(resolved);
-    cancelPendingSubtree(resolved);
+    await supersedePendingSubtree(resolved, () => fs.promises.rmdir(resolved));
 
     const rel = toRelative(req._vaultRoot, resolved);
 
@@ -449,13 +446,13 @@ router.delete("/rm", async (req, res) => {
   }
 
   try {
-    await fs.promises.rm(resolved, {
-      recursive: req.query.recursive === "true",
-    });
-    cancelPending(resolved);
+    const recursive = req.query.recursive === "true";
+    const remove = () => fs.promises.rm(resolved, { recursive });
 
-    if (req.query.recursive === "true") {
-      cancelPendingSubtree(resolved);
+    if (recursive) {
+      await supersedePendingSubtree(resolved, remove);
+    } else {
+      await supersedePending(resolved, remove);
     }
 
     const rel = toRelative(req._vaultRoot, resolved);

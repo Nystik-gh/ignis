@@ -45,7 +45,11 @@ beforeAll(() => {
 
   if (canSymlink) {
     fs.symlinkSync(target, path.join(root, "linkvault"), "dir");
-    fs.symlinkSync(path.join(target, "nope"), path.join(root, "dangling"), "dir");
+    fs.symlinkSync(
+      path.join(target, "nope"),
+      path.join(root, "dangling"),
+      "dir",
+    );
   }
 });
 
@@ -80,6 +84,42 @@ describe("getVaultPath", () => {
     expect(config.getVaultPath("constructor")).toBe(null);
     expect(config.getVaultPath("hasOwnProperty")).toBe(null);
     expect(config.getVaultPath("__proto__")).toBe(null);
+  });
+});
+
+describe("getVaultPathOrRescan", () => {
+  it("finds a vault folder added after startup by rescanning once", () => {
+    const config = loadConfig();
+
+    expect(config.getVaultPath("added")).toBe(null);
+
+    fs.mkdirSync(path.join(root, "added"));
+
+    expect(config.getVaultPathOrRescan("added", 10_000)).toBe(
+      path.join(root, "added"),
+    );
+    expect(config.getVaultPath("added")).toBe(path.join(root, "added"));
+  });
+
+  it("does not rescan twice inside the throttle window", () => {
+    const config = loadConfig();
+
+    expect(config.getVaultPathOrRescan("missing", 20_000)).toBe(null);
+
+    fs.mkdirSync(path.join(root, "throttled"));
+
+    expect(config.getVaultPathOrRescan("throttled", 20_500)).toBe(null);
+    expect(config.getVaultPathOrRescan("throttled", 21_000)).toBe(
+      path.join(root, "throttled"),
+    );
+  });
+
+  it("answers a known vault without rescanning", () => {
+    const config = loadConfig();
+
+    expect(config.getVaultPathOrRescan("realvault", 30_000)).toBe(
+      path.join(root, "realvault"),
+    );
   });
 });
 

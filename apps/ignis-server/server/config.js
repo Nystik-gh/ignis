@@ -79,6 +79,13 @@ function discoverVaults() {
 
 let vaults = discoverVaults();
 
+const RESCAN_MIN_INTERVAL_MS = 1000;
+let lastRescanAt = 0;
+
+function getVaultPath(id) {
+  return Object.prototype.hasOwnProperty.call(vaults, id) ? vaults[id] : null;
+}
+
 module.exports = {
   port: process.env.PORT || 8080,
   vaultRoot,
@@ -89,8 +96,18 @@ module.exports = {
   get defaultVaultId() {
     return Object.keys(vaults)[0] || null;
   },
-  getVaultPath(id) {
-    return Object.prototype.hasOwnProperty.call(vaults, id) ? vaults[id] : null;
+  getVaultPath,
+  getVaultPathOrRescan(id, now = Date.now()) {
+    const known = getVaultPath(id);
+
+    if (known || !id || now - lastRescanAt < RESCAN_MIN_INTERVAL_MS) {
+      return known;
+    }
+
+    lastRescanAt = now;
+    vaults = discoverVaults();
+
+    return getVaultPath(id);
   },
   // { vaultId, relPath } or null
   vaultForPath(absPath) {

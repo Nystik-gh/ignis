@@ -12,7 +12,7 @@ const router = express.Router();
 router.get("/", async (req, res) => {
   const vaultId = req.query.vault || config.defaultVaultId;
 
-  if (!vaultId || !config.getVaultPath(vaultId)) {
+  if (!vaultId || !config.getVaultPathOrRescan(vaultId)) {
     return res.status(404).json({ error: "Vault not found", id: vaultId });
   }
 

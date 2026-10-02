@@ -169,3 +169,20 @@ describe("ignore rule limits", () => {
     expect(() => validate({ ignoreRules })).toThrow(/more than 64/);
   });
 });
+
+describe("trust toggle invalidation", () => {
+  const { trustChanges } = require("./settings.js");
+
+  it("names the vaults whose trust changed, in either direction", () => {
+    expect(trustChanges(["a", "b"], ["b", "c"])).toEqual(["a", "c"]);
+  });
+
+  it("names nothing when the list is unchanged", () => {
+    expect(trustChanges(["a"], ["a"])).toEqual([]);
+  });
+
+  it("treats a missing list as empty", () => {
+    expect(trustChanges(undefined, ["a"])).toEqual(["a"]);
+    expect(trustChanges(["a"], undefined)).toEqual(["a"]);
+  });
+});

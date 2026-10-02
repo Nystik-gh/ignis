@@ -51,7 +51,7 @@ router.get("/list", (req, res) => {
 // GET /api/vault/info?vault=<id> - returns info for a specific vault
 router.get("/info", async (req, res) => {
   const vaultId = req.query.vault || config.defaultVaultId;
-  const vaultPath = config.getVaultPath(vaultId);
+  const vaultPath = config.getVaultPathOrRescan(vaultId);
 
   if (!vaultPath) {
     return res.status(404).json({ error: "Vault not found", id: vaultId });

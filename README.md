@@ -93,7 +93,7 @@ A few design decisions worth knowing about for someone evaluating Ignis against 
 - Indexer pre-fetch warms the content cache so Obsidian's startup index hits cache instead of the network.
 - An LRU content cache (50 MB by default) keeps memory use bounded regardless of vault size, so Ignis doesn't hold the whole vault in memory.
 - Paths can be excluded from file watching to reduce watcher load on large vaults.
-- Optional write coalescing debounces rapid writes for slow filesystems (rclone, FUSE, NFS, SMB); off unless `WRITE_COALESCE_MS` is set.
+- Write coalescing can be turned on to debounce rapid writes on slow filesystems such as rclone, FUSE, NFS, or SMB mounts. It is set with the 'Write coalesce window' setting or `WRITE_COALESCE_MS`.
 
 See [Settings](https://ignis.thiefling.com/docs/using/settings/) for more in-depth descriptions.
 

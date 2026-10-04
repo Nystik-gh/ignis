@@ -108,7 +108,7 @@ export class MetadataCache {
     return {
       size: meta.size || 0,
       mtimeMs: meta.mtime || 0,
-      ctimeMs: meta.ctime || 0, // meta.ctime is creation time, not POSIX inode ctime.
+      ctimeMs: meta.mtime || 0, // ctimeMs (POSIX inode) must be set to mtime since meta.ctime is creation time not inode.
       atimeMs: meta.mtime || 0,
       birthtimeMs: meta.ctime || 0,
       mtime: new Date(meta.mtime || 0),

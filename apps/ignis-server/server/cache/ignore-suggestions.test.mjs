@@ -42,6 +42,7 @@ describe("plugin subtrees worth an ignore-list line", () => {
         pluginDir: PLUGIN,
         fileCount: HEAVY_PLUGIN_FILES + 5,
         patterns: [`${PLUGIN}/icons`],
+        covered: false,
       },
     ]);
   });
@@ -110,5 +111,40 @@ describe("plugin subtrees worth an ignore-list line", () => {
     expect(
       suggestionsForTree(tree([".obsidian/themes", HEAVY_PLUGIN_FILES + 1])),
     ).toEqual([]);
+  });
+});
+
+describe("suggestions a broader rule already covers", () => {
+  it("marks a suggestion covered when its lines fall under an applied pattern", () => {
+    watcher.configure({ ignoredPaths: ["node_modules"] });
+    const heavy = `${PLUGIN}/node_modules`;
+
+    const [suggestion] = suggestionsForTree(
+      tree([heavy, HEAVY_PLUGIN_FILES + 1]),
+      true,
+    );
+
+    expect(suggestion.patterns).toEqual([heavy]);
+    expect(suggestion.covered).toBe(true);
+  });
+
+  it("marks a suggestion uncovered when nothing ignores its lines", () => {
+    const [suggestion] = suggestionsForTree(
+      tree([`${PLUGIN}/icons`, HEAVY_PLUGIN_FILES + 1]),
+    );
+
+    expect(suggestion.covered).toBe(false);
+  });
+
+  it("marks the plugin-root fallback covered when the plugin dir itself is ignored", () => {
+    watcher.configure({ ignoredPaths: [PLUGIN] });
+
+    const [suggestion] = suggestionsForTree(
+      tree([PLUGIN, HEAVY_PLUGIN_FILES + 1]),
+      true,
+    );
+
+    expect(suggestion.patterns[0]).toBe(`${PLUGIN}/*`);
+    expect(suggestion.covered).toBe(true);
   });
 });

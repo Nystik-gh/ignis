@@ -152,7 +152,7 @@ describe("sync fs mutations", () => {
     expect(deps.transport.copyFile).toHaveBeenCalled();
   });
 
-  it("utimesSync sets mtime and fires the transport", () => {
+  it("utimesSync sets mtime and fires the transport", async () => {
     const deps = makeDeps();
     const fs = createFsSync(
       deps.metadataCache,
@@ -163,23 +163,25 @@ describe("sync fs mutations", () => {
     deps.store.set(key, { type: "file", mtime: 0 });
 
     fs.utimesSync("note.md", 111, 222);
+    await new Promise((r) => setTimeout(r, 0));
 
     expect(deps.store.get(key).mtime).toBe(222000);
     expect(deps.transport.utimes).toHaveBeenCalledWith(key, 111000, 222000);
   });
 
-  it("utimesSync converts a Date argument to milliseconds", () => {
+  it("utimesSync converts a Date argument to milliseconds", async () => {
     const deps = makeDeps();
     const fs = createFsSync(
       deps.metadataCache,
       deps.contentCache,
       deps.transport,
     );
-    const key = resolvePath("note.md");
+    const key = resolvePath("dated.md");
     deps.store.set(key, { type: "file", mtime: 0 });
 
     const when = new Date(1783339200000);
-    fs.utimesSync("note.md", when, when);
+    fs.utimesSync("dated.md", when, when);
+    await new Promise((r) => setTimeout(r, 0));
 
     expect(deps.store.get(key).mtime).toBe(1783339200000);
     expect(deps.transport.utimes).toHaveBeenCalledWith(

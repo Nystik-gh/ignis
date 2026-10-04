@@ -582,3 +582,66 @@ describe("bootstrap cache walkTree", () => {
     expect(tree["x.md"].size).toBe(Buffer.byteLength("v2bootstrap"));
   });
 });
+
+describe("utimes route", () => {
+  const TOUCHED_MS = 1783339200123;
+  const utimes = (p, mtime) =>
+    postJson("utimes", { path: p, atime: mtime, mtime });
+
+  beforeEach(() => {
+    bootstrapCache.invalidateAll();
+    vi.spyOn(watcher, "isWatching").mockReturnValue(true);
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("answers 404 for a path that does not exist", async () => {
+    const res = await utimes("missing.md", TOUCHED_MS);
+
+    expect(res.status).toBe(404);
+    expect((await res.json()).code).toBe("ENOENT");
+  });
+
+  it("returns the times the touch left on disk", async () => {
+    await writeFile("touched.md", "hello");
+
+    const res = await utimes("touched.md", TOUCHED_MS);
+    const body = await res.json();
+    const stat = fs.statSync(abs("touched.md"));
+
+    expect(body).toMatchObject({
+      type: "file",
+      size: 5,
+      mtime: stat.mtimeMs,
+    });
+    expect(Math.round(body.mtime)).toBe(TOUCHED_MS);
+    expect(typeof body.ctime).toBe("number");
+  });
+
+  it("lands after a buffered write, so the touched mtime holds", async () => {
+    await bufferWrite("buffered.md", "v1", "v2");
+
+    expect((await utimes("buffered.md", TOUCHED_MS)).ok).toBe(true);
+    await sleep(WINDOW + 200);
+
+    expect(onDisk("buffered.md")).toBe("v2");
+    expect(Math.round(fs.statSync(abs("buffered.md")).mtimeMs)).toBe(
+      TOUCHED_MS,
+    );
+  });
+
+  it("leaves a touched dir a dir in the tree", async () => {
+    await mkdir("d");
+    await writeFile("d/f.md", "x");
+    await fetch(u(`tree?vault=${VAULT_ID}`)).then((r) => r.json());
+
+    expect((await utimes("d", TOUCHED_MS)).ok).toBe(true);
+    await settle();
+
+    const tree = await fetch(u(`tree?vault=${VAULT_ID}`)).then((r) => r.json());
+
+    expect(tree["d"]).toMatchObject({ type: "directory" });
+  });
+});

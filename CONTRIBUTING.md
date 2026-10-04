@@ -62,7 +62,7 @@ Once the approach is agreed:
 - `packages/ui/` - Svelte UI components (vault manager, dialogs)
 - `packages/bridge/` - The ignis-bridge Obsidian plugin (settings, file actions)
 - `packages/server-core/` - Shared server helpers (path guards, watcher, WebSocket)
-- `apps/ignis-server/` - Express server, Docker image, demo mode
+- `apps/ignis-server/` - Express server, Docker image
 - `apps/ignis-server/server/plugins/` - Server plugin packages (e.g., headless-sync)
 
 See [ARCHITECTURE.md](docs/ARCHITECTURE.md) for more detail.

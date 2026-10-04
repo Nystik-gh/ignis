@@ -143,3 +143,48 @@ describe("extractObsidianModule", () => {
     expect(captured.__captured).toBe(true);
   });
 });
+
+describe("loadVirtualPlugin", () => {
+  afterEach(() => {
+    delete globalThis.window;
+    delete globalThis.fetch;
+    delete globalThis.location;
+  });
+
+  it("announces the load on the window once the plugin is registered", async () => {
+    const { loadVirtualPlugin } = await import("./virtual-plugin-loader.js");
+    const dispatched = [];
+
+    globalThis.window = {
+      __ignis: { obsidian: {} },
+      app: {},
+      dispatchEvent: (event) => {
+        dispatched.push({
+          type: event.type,
+          id: event.detail.id,
+          registered: Boolean(window.__ignis.plugins["sample-plugin"]),
+        });
+      },
+    };
+    globalThis.location = { origin: "http://ignis.test" };
+    globalThis.fetch = vi.fn(async () => ({
+      ok: true,
+      text: async () =>
+        "module.exports = class { constructor() {} async onload() {} };",
+    }));
+
+    await loadVirtualPlugin({
+      id: "sample-plugin",
+      scriptUrl: "/sample-plugin.js",
+      manifest: { id: "sample-plugin" },
+    });
+
+    expect(dispatched).toEqual([
+      {
+        type: "ignis:virtual-plugin-loaded",
+        id: "sample-plugin",
+        registered: true,
+      },
+    ]);
+  });
+});

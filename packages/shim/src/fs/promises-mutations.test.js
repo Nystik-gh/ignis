@@ -26,7 +26,9 @@ function makeDeps() {
 
   const contentCache = {
     get: () => null,
+    pathUpdates: () => 0,
     set: vi.fn(),
+    setFromServer: vi.fn(),
     delete: vi.fn(),
     invalidate: vi.fn(),
   };
@@ -177,5 +179,35 @@ describe("promises readFile existence", () => {
       ".obsidian/workspace.Work.json",
       "utf8",
     );
+  });
+});
+
+describe("promises readFile racing a write", () => {
+  it("keeps content written while the read was in flight", async () => {
+    const metadataCache = new MetadataCache();
+    const contentCache = new ContentCache();
+    let release;
+
+    metadataCache.set("note.md", { type: "file", size: 6, mtime: 1 });
+
+    const transport = {
+      readFile: vi.fn(
+        () =>
+          new Promise((resolve) => {
+            release = () => resolve("server");
+          }),
+      ),
+      writeFile: vi.fn(async () => ({ mtime: 2, size: 5 })),
+    };
+
+    const fs = createFsPromises(metadataCache, contentCache, transport);
+    const read = fs.readFile("note.md", "utf8");
+
+    await fs.writeFile("note.md", "local", "utf8");
+    release();
+    await read;
+
+    expect(await fs.readFile("note.md", "utf8")).toBe("local");
+    expect(transport.readFile).toHaveBeenCalledTimes(1);
   });
 });

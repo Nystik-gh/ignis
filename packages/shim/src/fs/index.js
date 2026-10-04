@@ -9,11 +9,18 @@ import { createFdOps } from "./fd.js";
 import { createFsCallbacks } from "./callback.js";
 import { realpath, realpathSync } from "./realpath.js";
 import { constants } from "./constants.js";
-import { registerReadTransform, removeReadTransform, resolvePath } from "./transforms.js";
+import {
+  registerReadTransform,
+  removeReadTransform,
+  resolvePath,
+} from "./transforms.js";
+import { hasUnconfirmedWrite } from "./write-coalescer.js";
 import { wsClient } from "../ws-client.js";
 
 const metadataCache = new MetadataCache();
 const contentCache = new ContentCache();
+
+contentCache.retainWhile(hasUnconfirmedWrite);
 
 const fsPromises = createFsPromises(metadataCache, contentCache, transport);
 const fsSync = createFsSync(metadataCache, contentCache, transport);
@@ -48,6 +55,7 @@ export const fsShim = {
   copyFileSync: fsSync.copyFileSync,
   appendFileSync: fsSync.appendFileSync,
   utimesSync: fsSync.utimesSync,
+  lutimesSync: fsSync.lutimesSync,
   chmodSync: fsSync.chmodSync,
 
   realpath,
@@ -61,6 +69,8 @@ export const fsShim = {
   closeSync: fdOps.closeSync,
   fstat: fdOps.fstat,
   fstatSync: fdOps.fstatSync,
+  futimes: fdOps.futimes,
+  futimesSync: fdOps.futimesSync,
 
   watch: fsWatch.watch,
   constants,

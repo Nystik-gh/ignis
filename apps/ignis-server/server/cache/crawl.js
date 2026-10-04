@@ -130,8 +130,7 @@ function buildResponse(vaultId, vaultPath, tree, etag) {
     vaultList: buildVaultList(),
     tree,
     etag,
-    // In demo mode, hide server-side plugins from the client.
-    plugins: config.demoMode ? [] : getDiscoveredPlugins(),
+    plugins: getDiscoveredPlugins(),
     virtualPlugins: getVirtualPluginsForVault(vaultId, getVersion()),
     settings: {
       contentCacheBytes: settings.get("contentCacheBytes"),

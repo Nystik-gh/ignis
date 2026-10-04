@@ -213,6 +213,9 @@ async function runBatches(vaultId, slice, contentCache, label, onProgress) {
       }
 
       const batch = batches[idx];
+      const pathUpdatesBefore = new Map(
+        batch.map((f) => [f.path, contentCache.pathUpdates(f.path)]),
+      );
 
       let result;
 
@@ -228,8 +231,11 @@ async function runBatches(vaultId, slice, contentCache, label, onProgress) {
       }
 
       for (const [path, content] of Object.entries(result.files || {})) {
-        if (typeof content === "string") {
-          contentCache.set(path, content);
+        if (
+          typeof content === "string" &&
+          pathUpdatesBefore.has(path) &&
+          contentCache.setFromServer(path, content, pathUpdatesBefore.get(path))
+        ) {
           cached++;
         }
       }

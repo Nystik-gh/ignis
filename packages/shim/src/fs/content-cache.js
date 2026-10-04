@@ -8,13 +8,21 @@ export class ContentCache {
     this._cache = new Map(); // path -> { data, size, accessedAt }
     this._currentSize = 0;
     this._maxSize = maxSize;
+    this._pathUpdates = new Map(); // path -> counter of times content was set or dropped
+    this._isRetained = () => false;
+  }
+
+  retainWhile(isRetained) {
+    this._isRetained = isRetained;
   }
 
   setMaxSize(maxSize) {
     this._maxSize = maxSize;
 
-    while (this._currentSize > this._maxSize && this._cache.size > 0) {
-      this._evictOne();
+    while (this._currentSize > this._maxSize) {
+      if (!this._evictOne()) {
+        break;
+      }
     }
   }
 
@@ -32,30 +40,38 @@ export class ContentCache {
     return null;
   }
 
+  pathUpdates(path) {
+    return this._pathUpdates.get(this._normalize(path)) || 0;
+  }
+
   set(path, data) {
     const norm = this._normalize(path);
-    const size = data ? data.length || data.byteLength || 0 : 0;
 
-    // Remove old entry if replacing
-    this.delete(norm);
+    this._store(norm, data);
+    this._bump(norm);
+  }
 
-    // Evict LRU entries if needed
-    while (this._currentSize + size > this._maxSize && this._cache.size > 0) {
-      this._evictOne();
+  setFromServer(path, data, pathUpdatesBeforeFetch) {
+    const norm = this._normalize(path);
+
+    // only fill empty cache entries that have not been set or dropped in the interim.
+    if (
+      this._cache.has(norm) ||
+      this.pathUpdates(norm) !== pathUpdatesBeforeFetch
+    ) {
+      return false;
     }
 
-    this._cache.set(norm, { data, size, accessedAt: Date.now() });
-    this._currentSize += size;
+    this._store(norm, data);
+
+    return true;
   }
 
   delete(path) {
     const norm = this._normalize(path);
-    const entry = this._cache.get(norm);
 
-    if (entry) {
-      this._currentSize -= entry.size;
-      this._cache.delete(norm);
-    }
+    this._remove(norm);
+    this._bump(norm);
   }
 
   // Invalidate a path (remove from cache so next read fetches fresh)
@@ -80,20 +96,54 @@ export class ContentCache {
     return this._maxSize;
   }
 
+  _store(norm, data) {
+    const size = data ? data.length || data.byteLength || 0 : 0;
+
+    // Remove old entry if replacing
+    this._remove(norm);
+
+    // Evict LRU entries if needed
+    while (this._currentSize + size > this._maxSize) {
+      if (!this._evictOne()) {
+        break;
+      }
+    }
+
+    this._cache.set(norm, { data, size, accessedAt: Date.now() });
+    this._currentSize += size;
+  }
+
+  _remove(norm) {
+    const entry = this._cache.get(norm);
+
+    if (entry) {
+      this._currentSize -= entry.size;
+      this._cache.delete(norm);
+    }
+  }
+
+  _bump(norm) {
+    this._pathUpdates.set(norm, this.pathUpdates(norm) + 1);
+  }
+
   _evictOne() {
     let oldest = null;
     let oldestTime = Infinity;
 
     for (const [key, entry] of this._cache) {
-      if (entry.accessedAt < oldestTime) {
+      if (entry.accessedAt < oldestTime && !this._isRetained(key)) {
         oldest = key;
         oldestTime = entry.accessedAt;
       }
     }
 
-    if (oldest) {
-      this.delete(oldest);
+    if (oldest === null) {
+      return false;
     }
+
+    this._remove(oldest);
+
+    return true;
   }
 
   _normalize(p) {

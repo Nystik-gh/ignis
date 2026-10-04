@@ -1,7 +1,6 @@
 import { vaultService } from "@ignis/services";
 import * as serverSettings from "./server-settings.js";
 import { messageDefinition } from "./settings-ui.js";
-import { isDemoMode } from "../demo-guards.js";
 
 function settingDefinitions() {
   return [
@@ -19,13 +18,6 @@ function settingDefinitions() {
 }
 
 function vaultSettingDefinition() {
-  if (isDemoMode()) {
-    return {
-      name: "Vault settings",
-      desc: "Vault settings are disabled in demo mode.",
-    };
-  }
-
   if (!serverSettings.get()) {
     return messageDefinition(
       serverSettings.loadFailed()

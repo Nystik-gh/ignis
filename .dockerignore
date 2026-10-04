@@ -7,7 +7,6 @@ node_modules
 .prettierrc
 investigation
 vaults
-demo-vaults
 data
 tmp
 **/dist

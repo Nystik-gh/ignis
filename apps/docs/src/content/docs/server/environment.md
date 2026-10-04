@@ -68,7 +68,3 @@ Experimental switches that may change or disappear in later releases. They exist
 | --- | --- | --- |
 | `DEV_SUPPRESS_WRITE_FAILURES` | `false` | Hide the notices Ignis shows when a save fails. Writes are still attempted and still fail. |
 | `DEV_FORCE_READING_VIEW` | `false` | Open every note in reading view and prevent changing the view mode. |
-
----
-
-Demo mode adds its own `DEMO_*` variables for running a public, throwaway instance. See [`examples/demo/`](https://github.com/Nystik-gh/ignis/tree/main/apps/ignis-server/examples/demo) in the repository.

@@ -7,7 +7,7 @@ import {
   resolvePathInfo,
 } from "./transforms.js";
 import { hasVirtualFile, getVirtualFile } from "./virtual-files.js";
-import { trackWrite } from "./write-durability.js";
+import { cancelPending, enqueueWrite, hasPending } from "./write-coalescer.js";
 import { createUtimes } from "./utimes.js";
 
 export function createFsSync(metadataCache, contentCache, transport) {
@@ -162,13 +162,21 @@ export function createFsSync(metadataCache, contentCache, transport) {
       const resolved = resolvePath(path);
       const transformed = applyWriteTransform(resolved, data);
 
-      markSentOp(resolved);
       contentCache.set(resolved, transformed);
 
       const size =
         typeof transformed === "string"
           ? transformed.length
           : transformed.byteLength || 0;
+
+      const applyResult = (result) => {
+        metadataCache.set(resolved, {
+          type: "file",
+          size: result.size || size,
+          mtime: result.mtime,
+          ctime: metadataCache.get(resolved)?.ctime || Date.now(),
+        });
+      };
 
       metadataCache.set(resolved, {
         type: "file",
@@ -177,13 +185,14 @@ export function createFsSync(metadataCache, contentCache, transport) {
         ctime: metadataCache.get(resolved)?.ctime || Date.now(),
       });
 
-      // Fire-and-forget async send, tracked silently: retries with backoff and gives up without surfacing.
-      const track = trackWrite(resolved, { silent: true });
+      if (hasPending(resolved)) {
+        cancelPending(resolved);
+      }
 
-      transport.writeFile(resolved, transformed, encoding).then(
-        () => track.success(),
-        () => track.failure(transformed, encoding, null),
-      );
+      // Fire-and-forget.
+      enqueueWrite(resolved, transformed, encoding, applyResult, {
+        silent: true,
+      }).catch(() => {});
     },
 
     unlinkSync(path) {
@@ -346,6 +355,10 @@ export function createFsSync(metadataCache, contentCache, transport) {
     },
 
     utimesSync(path, atime, mtime) {
+      commitUtimes(path, atime, mtime);
+    },
+
+    lutimesSync(path, atime, mtime) {
       commitUtimes(path, atime, mtime);
     },
 

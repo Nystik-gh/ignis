@@ -22,3 +22,4 @@ Some of Obsidian's features need browser APIs that are available only in a [secu
 - **Spellcheck languages.** A page cannot choose the browser's spellcheck languages, so Ignis disables the setting and points you to your browser's own language settings.
 - **Native menus.** The native menus option under Appearance relies on Electron's menu APIs, so Ignis leaves it turned off.
 - **Settings in a new window.** The "Open settings in new window" option under Interface relies on Electron's window APIs, so Ignis keeps settings in the in-app modal.
+- **Pop-out windows.** Pop-out windows rely on Electron's window APIs, so Ignis opens notes as tabs in the main window. A pop-out saved by desktop Obsidian stays in the layout but does not open in the browser.

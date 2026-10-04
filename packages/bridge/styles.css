@@ -229,6 +229,13 @@
   }
 }
 
+@media (prefers-reduced-motion: reduce) {
+  .ignis-statusbar-writes-pending {
+    animation: none;
+    opacity: 0.6;
+  }
+}
+
 .ignis-write-failure-actions {
   display: flex;
   gap: 8px;
@@ -264,8 +271,13 @@
   border-radius: var(--radius-m);
   max-height: 220px;
   overflow-y: auto;
-  padding: 0 var(--size-4-3);
+  scrollbar-gutter: stable;
+  padding: var(--size-4-2) var(--size-4-3);
   margin-bottom: var(--size-4-4);
+}
+
+.ignis-list-editor .setting-item {
+  padding: var(--size-4-2) 0;
 }
 
 .ignis-list-empty {

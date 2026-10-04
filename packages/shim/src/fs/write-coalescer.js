@@ -1,7 +1,8 @@
 // Coalesces boot-window writes per path so they flush in a few round-trips instead of one per save.
 
 import { markSentOp } from "./echo-guard.js";
-import { trackWrite } from "./write-durability.js";
+import { hasWriteInProgress, trackWrite } from "./write-durability.js";
+import { normalize } from "../util/path.js";
 
 const QUIET_MS = 100; // flush a path this long after its last write
 const MAX_WAIT_MS = 2000; // but never hold a buffered write longer than this
@@ -44,9 +45,9 @@ export function initWriteCoalescer(t) {
   }
 }
 
-function performWrite(path, data, encoding, onResult) {
+function performWrite(path, data, encoding, onResult, opts) {
   markSentOp(path);
-  const track = trackWrite(path);
+  const track = trackWrite(path, opts);
 
   return transport.writeFile(path, data, encoding).then(
     (result) => {
@@ -82,7 +83,7 @@ export function enqueue(path, run) {
   return result;
 }
 
-function doFlush(path) {
+export function flushPending(path) {
   const entry = pending.get(path);
 
   if (!entry) {
@@ -107,17 +108,19 @@ export function bufferWrite(path, data, encoding, onResult) {
   entry.data = data;
   entry.encoding = encoding;
   entry.onResult = onResult;
-  entry.quiet = setTimeout(() => doFlush(path), QUIET_MS);
+  entry.quiet = setTimeout(() => flushPending(path), QUIET_MS);
 
   if (!entry.max) {
-    entry.max = setTimeout(() => doFlush(path), MAX_WAIT_MS);
+    entry.max = setTimeout(() => flushPending(path), MAX_WAIT_MS);
   }
 
   pending.set(path, entry);
 }
 
-export function enqueueWrite(path, data, encoding, onResult) {
-  return enqueue(path, () => performWrite(path, data, encoding, onResult));
+export function enqueueWrite(path, data, encoding, onResult, opts) {
+  return enqueue(path, () =>
+    performWrite(path, data, encoding, onResult, opts),
+  );
 }
 
 export function cancelPending(path) {
@@ -136,8 +139,25 @@ export function hasPending(path) {
   return pending.has(path);
 }
 
+export function hasUnconfirmedWrite(path) {
+  const norm = normalize(path);
+
+  return pending.has(norm) || tails.has(norm) || hasWriteInProgress(norm);
+}
+
 function flushAll() {
   for (const path of Array.from(pending.keys())) {
-    doFlush(path);
+    flushPending(path);
   }
+}
+
+// Test-only: drop buffered writes and per-path tails.
+export function _reset() {
+  for (const entry of pending.values()) {
+    clearTimeout(entry.quiet);
+    clearTimeout(entry.max);
+  }
+
+  pending.clear();
+  tails.clear();
 }

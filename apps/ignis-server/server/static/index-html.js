@@ -50,13 +50,6 @@ function buildIndexHtml() {
     JSON.stringify(scripts.map((s) => versionedSrc(s, obsidianVersion))),
   );
 
-  if (config.demoMode) {
-    html = html.replace(
-      '<body class="theme-dark">',
-      '<body class="theme-dark" data-demo-mode="true">',
-    );
-  }
-
   cachedHtml = html;
   return cachedHtml;
 }

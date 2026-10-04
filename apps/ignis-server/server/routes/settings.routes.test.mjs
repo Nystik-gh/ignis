@@ -74,6 +74,22 @@ const post = (body) =>
     body: JSON.stringify(body),
   });
 
+function writeHeavyPlugin() {
+  for (let i = 0; i < 501; i++) {
+    const file = path.join(
+      vaultDir,
+      ".obsidian",
+      "plugins",
+      "heavy",
+      "icons",
+      `f${i}.svg`,
+    );
+
+    fs.mkdirSync(path.dirname(file), { recursive: true });
+    fs.writeFileSync(file, "s");
+  }
+}
+
 describe("POST /api/settings with a new ignore list", () => {
   it("stops the running watchers and restarts them on the new list", async () => {
     watcher.startWatching(VAULT_ID, vaultDir);
@@ -116,24 +132,34 @@ describe("POST /api/settings with a new ignore list", () => {
     expect(res.status).toBe(200);
     expect(watcher.isWatching(VAULT_ID)).toBe(true);
   }, 20000);
+
+  it("returns the suggestions covered by the saved list", async () => {
+    writeHeavyPlugin();
+    await bootstrapCache.getOrBuild(VAULT_ID);
+
+    const res = await post({
+      ignoreRules: [
+        ...settings.DEFAULTS.ignoreRules,
+        { name: "Plugins", patterns: [".obsidian/plugins/heavy/icons"] },
+      ],
+    });
+
+    expect(res.status).toBe(200);
+    expect((await res.json()).ignoreSuggestions).toEqual([
+      {
+        vault: VAULT_ID,
+        pluginDir: ".obsidian/plugins/heavy",
+        fileCount: 501,
+        patterns: [".obsidian/plugins/heavy/icons"],
+        covered: true,
+      },
+    ]);
+  }, 20000);
 });
 
 describe("GET /api/settings", () => {
   it("carries the suggestions the modal reads", async () => {
-    for (let i = 0; i < 501; i++) {
-      const file = path.join(
-        vaultDir,
-        ".obsidian",
-        "plugins",
-        "heavy",
-        "icons",
-        `f${i}.svg`,
-      );
-
-      fs.mkdirSync(path.dirname(file), { recursive: true });
-      fs.writeFileSync(file, "s");
-    }
-
+    writeHeavyPlugin();
     await bootstrapCache.getOrBuild(VAULT_ID);
 
     const body = await (await fetch(`${base}/api/settings`)).json();
@@ -144,6 +170,7 @@ describe("GET /api/settings", () => {
         pluginDir: ".obsidian/plugins/heavy",
         fileCount: 501,
         patterns: [".obsidian/plugins/heavy/icons"],
+        covered: false,
       },
     ]);
   }, 20000);

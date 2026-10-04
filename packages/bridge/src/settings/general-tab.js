@@ -1,5 +1,4 @@
 import { setIcon } from "obsidian";
-import { isDemoMode } from "../demo-guards.js";
 import { checkForUpdate } from "../update-check.js";
 import * as serverSettings from "./server-settings.js";
 import { numberField, listField } from "./server-setting-fields.js";
@@ -147,20 +146,6 @@ const MB = 1024 * 1024;
 const MINUTE = 60 * 1000;
 
 function serverSettingsGroups(tab) {
-  if (isDemoMode()) {
-    return [
-      {
-        type: "group",
-        items: [
-          {
-            name: "Server settings",
-            desc: "Server settings are disabled in demo mode.",
-          },
-        ],
-      },
-    ];
-  }
-
   if (!serverSettings.get()) {
     return [
       {
@@ -321,12 +306,9 @@ function ignoreRulesField() {
           openIgnoreRulesEditor({
             rules,
             suggestions: current.ignoreSuggestions,
-            onChange: (edited) => {
+            onChange: async (edited) => {
               rules = edited;
               setLabel(btn);
-            },
-            onClose: async (edited) => {
-              rules = edited;
               await serverSettings.save({ ignoreRules: edited });
             },
           });
@@ -346,21 +328,12 @@ function openIgnoreRulesEditor(opts) {
     },
   });
 
-  let latest = opts.rules;
-  let dirty = false;
-
   component.$on("change", (event) => {
-    latest = event.detail;
-    dirty = true;
-    opts.onChange(latest);
+    opts.onChange(event.detail);
   });
 
   component.$on("close", () => {
     component.$destroy();
-
-    if (dirty) {
-      opts.onClose(latest);
-    }
   });
 }
 

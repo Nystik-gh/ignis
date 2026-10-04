@@ -77,6 +77,12 @@ function patternsFor(pluginDir, counts) {
   return patterns;
 }
 
+function isLineCovered(line) {
+  const dir = line.replace(/\/\*$/, "");
+
+  return watcher.isIgnoredPath(`${dir}/any-file`);
+}
+
 function suggestionsForTree(tree, includeIgnored = false) {
   const suggestions = [];
 
@@ -85,10 +91,14 @@ function suggestionsForTree(tree, includeIgnored = false) {
       continue;
     }
 
+    const patterns = patternsFor(pluginDir, counts);
+    const ignoreLines = patterns.filter((pattern) => !pattern.startsWith("!"));
+
     suggestions.push({
       pluginDir,
       fileCount: counts.total,
-      patterns: patternsFor(pluginDir, counts),
+      patterns,
+      covered: ignoreLines.every((line) => isLineCovered(line)),
     });
   }
 

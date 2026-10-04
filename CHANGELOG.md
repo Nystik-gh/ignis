@@ -2,6 +2,30 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.8.16] - Karm (2026-10-04)
+
+### Changed
+
+- Opening a note in a new window opens it in a tab.
+- Ignore rules are saved as you edit them, and suggestions already covered by a rule are hidden.
+- Refresh vault from disk updates the file explorer immediately.
+- Improved spacing in list editors, and the save indicator respects reduced motion.
+
+### Fixed
+
+- Edits made while the server is unreachable are no longer reverted when it reconnects.
+- With write coalescing on, a file deleted right after saving stays deleted.
+- `fs.utimes` works when called right after a write.
+- `fs.stat` reports `ctimeMs` correctly.
+- Headless Sync status spinner shows a more accurate state.
+- Ignis plugin settings tabs no longer go missing from Settings after a reload.
+- Enabling an Ignis plugin takes effect on the next reload.
+- A vault folder created outside the vault manager loads correctly on its first open.
+
+### Removed
+
+- Demo mode and its `DEMO_*` variables.
+
 ## [0.8.15] - Karm (2026-10-01)
 
 ### Fixed

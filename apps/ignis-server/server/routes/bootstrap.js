@@ -12,7 +12,7 @@ const router = express.Router();
 router.get("/", async (req, res) => {
   const vaultId = req.query.vault || config.defaultVaultId;
 
-  if (!vaultId || !config.getVaultPath(vaultId)) {
+  if (!vaultId || !config.getVaultPathOrRescan(vaultId)) {
     return res.status(404).json({ error: "Vault not found", id: vaultId });
   }
 
@@ -25,13 +25,6 @@ router.get("/", async (req, res) => {
 
     // don't cache the bootstrap response, since it contains the metadata tree which can change frequently.
     res.setHeader("Cache-Control", "no-store");
-
-    // In demo mode, route through res.json so the demo middleware can translate vault names per-session.
-    // The pre-compressed buffer path bakes the storage prefix in and would bypass the response wrapper.
-    // Deep-clone so the demo translator's in-place mutation doesn't pollute the cached response object.
-    if (req._demoSessionId) {
-      return res.json(JSON.parse(JSON.stringify(entry.response)));
-    }
 
     const ae = req.headers["accept-encoding"] || "";
     const compressed = await getOrCompress(entry);

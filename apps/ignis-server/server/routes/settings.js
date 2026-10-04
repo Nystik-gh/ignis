@@ -201,13 +201,41 @@ router.post("/", async (req, res) => {
 
   await applySettings(effective, previous);
 
-  // Cache sizes ride in the bootstrap response; clear it so the next page load picks up new values.
-  if (Object.keys(clean).length > 0) {
-    bootstrapCache.invalidateAll();
+  const ignoreSuggestions = bootstrapCache.ignoreSuggestions();
+
+  invalidateBootstrap(clean, previous, effective);
+
+  res.json({ ...effective, ignoreSuggestions });
+});
+
+function invalidateBootstrap(clean, previous, effective) {
+  const keys = Object.keys(clean);
+
+  if (keys.length === 0) {
+    return;
   }
 
-  res.json(effective);
-});
+  if (keys.length === 1 && keys[0] === "trustedVaults") {
+    for (const id of trustChanges(
+      previous.trustedVaults,
+      effective.trustedVaults,
+    )) {
+      bootstrapCache.invalidateVault(id);
+    }
+
+    return;
+  }
+
+  bootstrapCache.invalidateAll();
+}
+
+function trustChanges(before, after) {
+  const was = new Set(before || []);
+  const now = new Set(after || []);
+
+  return [...was, ...now].filter((id) => was.has(id) !== now.has(id));
+}
 
 module.exports = router;
 module.exports.validate = validate;
+module.exports.trustChanges = trustChanges;

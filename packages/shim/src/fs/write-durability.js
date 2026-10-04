@@ -18,7 +18,7 @@ let silentByDefault = false;
 // Retries reuse the same per-path serializer as fresh writes, so a stale retry cannot clobber a newer write.
 let serialize = (path, run) => run();
 
-// path -> { gen, status, silent, overThreshold, data, encoding, onResult, attempts, startTimer, retryTimer }
+// path -> { gen, status, silent, overThreshold, data, encoding, onResult, followUp, attempts, startTimer, retryTimer }
 // status "inflight" | "retrying" | "failed"; a failed non-silent entry is kept out of the aggregate but retained for retryAll().
 const entries = new Map();
 
@@ -182,50 +182,62 @@ function attempt(path, gen) {
 
   // Serialize behind any in-flight write; if a newer write superseded us while queued, skip the send.
   serialize(path, () => {
-    const e = entries.get(path);
+    const current = entries.get(path);
 
-    if (!e || e.gen !== gen) {
+    if (!current || current.gen !== gen) {
       return Promise.resolve(null);
     }
 
     markSentOp(path);
-    return transport.writeFile(path, e.data, e.encoding);
+
+    return transport
+      .writeFile(path, current.data, current.encoding)
+      .then((result) => {
+        if (current.onResult && result && result.mtime) {
+          current.onResult(result);
+        }
+
+        if (!current.followUp) {
+          return result;
+        }
+
+        return Promise.resolve()
+          .then(current.followUp)
+          .catch(() => {})
+          .then(() => result);
+      });
   }).then(
-    (result) => {
-      const e = entries.get(path);
+    () => {
+      const current = entries.get(path);
 
-      if (!e || e.gen !== gen) {
+      if (!current || current.gen !== gen) {
         return;
-      }
-
-      if (e.onResult && result && result.mtime) {
-        e.onResult(result);
       }
 
       discard(path);
       recompute();
     },
     () => {
-      const e = entries.get(path);
+      const current = entries.get(path);
 
-      if (!e || e.gen !== gen) {
+      if (!current || current.gen !== gen) {
         return;
       }
 
-      e.attempts += 1;
+      current.attempts += 1;
 
-      if (e.attempts <= MAX_ATTEMPTS) {
+      if (current.attempts <= MAX_ATTEMPTS) {
         scheduleRetry(path, gen);
         return;
       }
 
-      if (e.silent) {
+      if (current.silent) {
         // Silent writes give up without user surfacing; the optimistic cache staleness clears on reload.
         console.error("[shim:fs] write durability gave up (silent):", path);
         discard(path);
         recompute();
       } else {
-        e.status = "failed";
+        current.status = "failed";
         recompute();
         emitFailure(path);
       }
@@ -257,10 +269,10 @@ export function trackWrite(path, opts) {
   };
 
   entry.startTimer = setTimeout(() => {
-    const e = entries.get(path);
+    const current = entries.get(path);
 
-    if (e && e.gen === gen && e.status === "inflight") {
-      e.overThreshold = true;
+    if (current && current.gen === gen && current.status === "inflight") {
+      current.overThreshold = true;
       recompute();
     }
   }, PENDING_AFTER_MS);
@@ -276,33 +288,51 @@ export function trackWrite(path, opts) {
 
   return {
     success() {
-      const e = entries.get(path);
+      const current = entries.get(path);
 
-      if (e && e.gen === gen) {
+      if (current && current.gen === gen) {
         discard(path);
         recompute();
       }
     },
 
     failure(data, encoding, onResult) {
-      const e = entries.get(path);
+      const current = entries.get(path);
 
-      if (!e || e.gen !== gen) {
+      if (!current || current.gen !== gen) {
         return;
       }
 
-      clearTimeout(e.startTimer);
-      e.data = data;
-      e.encoding = encoding;
-      e.onResult = onResult;
-      e.status = "retrying";
-      e.overThreshold = true;
-      e.attempts = 1;
+      clearTimeout(current.startTimer);
+      current.data = data;
+      current.encoding = encoding;
+      current.onResult = onResult;
+      current.status = "retrying";
+      current.overThreshold = true;
+      current.attempts = 1;
 
       scheduleRetry(path, gen);
       recompute();
     },
   };
+}
+
+export function attachFollowUp(path, fn) {
+  const entry = entries.get(path);
+
+  if (!entry || (entry.status !== "retrying" && entry.status !== "failed")) {
+    return false;
+  }
+
+  entry.followUp = fn;
+
+  return true;
+}
+
+export function hasWriteInProgress(path) {
+  const entry = entries.get(path);
+
+  return !!entry && entry.status !== "failed";
 }
 
 export function getState() {

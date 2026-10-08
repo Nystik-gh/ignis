@@ -24,6 +24,14 @@ function installContextMenuFix() {
   window.addEventListener(
     "contextmenu",
     (e) => {
+      const isTouch =
+        e.pointerType === "touch" || e.sourceCapabilities?.firesTouchEvents;
+
+      // allow for touch events. Fixes copy/paste on mobile devices.
+      if (isTouch) {
+        return;
+      }
+
       e.preventDefault();
       Object.defineProperty(e, "defaultPrevented", { get: () => false });
     },

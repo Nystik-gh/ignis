@@ -22,10 +22,13 @@
   color: var(--text-normal);
 }
 
-/* Mobile browser UI can make 100% taller than the visible viewport. Keep
-   Obsidian's fixed bottom nav inside the visible viewport. */
+/* 100% and 100vh extend under mobile browser bars. */
 @supports (height: 100dvh) {
   body.is-phone {
     height: 100dvh;
+  }
+
+  body.is-phone .mobile-toolbar {
+    top: calc(100dvh - var(--keyboard-height) - var(--mobile-toolbar-height));
   }
 }

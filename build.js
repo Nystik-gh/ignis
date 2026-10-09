@@ -12,6 +12,16 @@ const headlessSyncDir = path.join(
   "obsidian",
 );
 
+const gitBackupDir = path.join(
+  __dirname,
+  "apps",
+  "ignis-server",
+  "server",
+  "plugins",
+  "git-backup",
+  "obsidian",
+);
+
 // Compute version info once and share across per-package builds.
 const { version: semver } = require("./package.json");
 const build = process.env.IGNIS_BUILD || Date.now().toString(36).slice(-7);
@@ -56,6 +66,25 @@ Promise.all([
       fs.copyFileSync(
         path.join(headlessSyncDir, "styles.css"),
         path.join(headlessSyncDir, "dist", "ignis-headless-sync.css"),
+      );
+    }),
+
+  // Build git-backup bundled plugin
+  esbuild
+    .build({
+      entryPoints: [path.join(gitBackupDir, "src", "main.js")],
+      bundle: true,
+      outfile: path.join(gitBackupDir, "dist", "ignis-git-backup.js"),
+      format: "cjs",
+      platform: "browser",
+      target: ["chrome90"],
+      external: ["obsidian"],
+      logLevel: "info",
+    })
+    .then(() => {
+      fs.copyFileSync(
+        path.join(gitBackupDir, "styles.css"),
+        path.join(gitBackupDir, "dist", "ignis-git-backup.css"),
       );
     }),
 ]).catch(() => process.exit(1));

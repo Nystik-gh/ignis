@@ -1,0 +1,9 @@
+{
+  "id": "ignis-git-backup",
+  "name": "Git Backup",
+  "version": "0.1.0",
+  "minAppVersion": "1.13.0",
+  "description": "Client-side companion for automatic server-side Git backups",
+  "author": "Ignis",
+  "isDesktopOnly": false
+}

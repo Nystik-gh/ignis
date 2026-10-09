@@ -1,7 +1,14 @@
-const { spawn, execSync } = require("child_process");
+const { spawn, execSync, execFileSync } = require("child_process");
 const fs = require("fs");
 const os = require("os");
 const path = require("path");
+const { DependencyManager } = require("../plugin-system/dependencies");
+
+const HEADLESS_DEPENDENCY = {
+  name: "obsidian-headless",
+  version: "0.0.14",
+  installScripts: true,
+};
 
 const LOGIN_TIMEOUT_MS = 30000;
 const LOGIN_KILL_MS = 5000;
@@ -10,9 +17,19 @@ const OVERLOAD_TEXT = "Unexpected token";
 
 let obHome = null;
 let cliJs = null;
+let dependencyManager = null;
 
 function init(opts) {
   obHome = opts && opts.obHome ? opts.obHome : null;
+  dependencyManager = opts?.dataRoot
+    ? new DependencyManager(opts.dataRoot, {
+        log: (msg) => console.log(`[ob-cli] ${msg}`),
+      })
+    : null;
+  cliJs =
+    opts?.cliJs ||
+    dependencyManager?.resolveCached(HEADLESS_DEPENDENCY) ||
+    null;
 
   if (obHome) {
     try {
@@ -51,10 +68,16 @@ function obEnv(home) {
 
 function checkInstalled() {
   try {
-    const output = execSync("ob --version", {
+    const options = {
       stdio: "pipe",
       windowsHide: true,
-    })
+      timeout: 10000,
+    };
+    const output = (
+      cliJs
+        ? execFileSync(process.execPath, [cliJs, "--version"], options)
+        : execSync("ob --version", options)
+    )
       .toString()
       .trim();
 
@@ -62,6 +85,22 @@ function checkInstalled() {
   } catch {
     return { installed: false, version: null };
   }
+}
+
+async function ensureInstalled() {
+  const installed = checkInstalled();
+
+  if (installed.installed || !dependencyManager) {
+    return installed;
+  }
+
+  const dependencies = await dependencyManager.prepare([HEADLESS_DEPENDENCY]);
+  cliJs = dependencies.resolve(HEADLESS_DEPENDENCY.name);
+  return checkInstalled();
+}
+
+function useManagedCli(file) {
+  cliJs = file;
 }
 
 function obCliJs() {
@@ -88,7 +127,7 @@ function spawnOb(args, opts = {}) {
   };
 
   // windows shell fix
-  if (process.platform === "win32") {
+  if (cliJs || process.platform === "win32") {
     return spawn(process.execPath, [obCliJs(), ...args], spawnOpts);
   }
 
@@ -261,10 +300,13 @@ function login({ email, password, mfa }) {
 }
 
 module.exports = {
+  HEADLESS_DEPENDENCY,
   init,
   getObHome,
   getAuthTokenFile,
   checkInstalled,
+  ensureInstalled,
+  useManagedCli,
   spawnOb,
   runCommand,
   login,

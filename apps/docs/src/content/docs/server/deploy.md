@@ -151,4 +151,4 @@ Ignis will unpack the local copy instead of downloading. The package must be the
 
 ### Backups
 
-Your vaults are ordinary files under `vaults`. Back them up with whatever you use for other server data. Ignis has no built-in backup.
+Your vaults are ordinary files under `vaults`. Back them up with whatever you use for other server data. The optional [Git Backup server plugin](/docs/using/server-plugins/#git-backup) keeps local version history under `data`; back up that directory too. Local history does not protect against server or disk loss.

@@ -87,6 +87,7 @@ childProcess.spawn = (command, args, opts) => {
   };
 
   obRuns.push({
+    command,
     args: runArgs,
     opts,
     proc,
@@ -238,6 +239,18 @@ describe("getAuthTokenFile", () => {
 });
 
 describe("spawnOb", () => {
+  it("runs a managed CLI with Node without depending on a global ob binary", () => {
+    try {
+      obCli.useManagedCli(path.join(dataDir, "node_modules", "obsidian-headless", "cli.js"));
+      obCli.spawnOb(["sync-list-remote"]);
+      expect(obRuns[0].command).toBe(process.execPath);
+      expect(obRuns[0].args).toEqual(["sync-list-remote"]);
+      expect(obRuns[0].opts.env.HOME).toBe(obHome);
+    } finally {
+      obCli.init({ obHome });
+    }
+  });
+
   it("runs ob without XDG_CONFIG_HOME", () => {
     obCli.spawnOb(["sync-list-remote"]);
 

@@ -124,6 +124,36 @@ describe("signinCredentials", () => {
 });
 
 describe("the sign-in ladder", () => {
+  it("prepares the CLI on demand only when the relay needs a fallback", async () => {
+    const ensureInstalled = vi.fn(async () => ({ installed: true }));
+    signin._setObCli({
+      checkInstalled: () => ({ installed: false }),
+      ensureInstalled,
+      login: obLogin,
+    });
+    const success = relayedAnswer(200, JSON.stringify({ token: "relay-token" }));
+    expect(await resolve(success)).toBe(success);
+    expect(ensureInstalled).not.toHaveBeenCalled();
+
+    obLogin.mockResolvedValue({ outcome: "ok", token: "ob-token", name: NAME });
+    const answer = await resolve(relayedAnswer(200, OVERLOADED));
+    expect(ensureInstalled).toHaveBeenCalledOnce();
+    expect(JSON.parse(bodyOf(answer)).token).toBe("ob-token");
+  });
+
+  it("keeps the relay retry available when dependency installation fails", async () => {
+    const ensureInstalled = vi.fn(async () => { throw new Error("Offline"); });
+    signin._setObCli({
+      checkInstalled: () => ({ installed: false }),
+      ensureInstalled,
+      login: obLogin,
+    });
+    const answer = await resolve(relayedAnswer(200, OVERLOADED));
+    expect(bodyOf(answer)).toBe(OVERLOADED);
+    expect(relayAgain).toHaveBeenCalledTimes(2);
+    expect(obLogin).not.toHaveBeenCalled();
+  });
+
   const resolve = (relayed) =>
     signin.resolveSignin(CREDENTIALS, relayed, relayAgain);
 

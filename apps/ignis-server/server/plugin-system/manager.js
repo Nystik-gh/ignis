@@ -3,6 +3,7 @@ const path = require("path");
 const express = require("express");
 const { discoverPlugins } = require("./discovery");
 const configStore = require("./config-store");
+const { DependencyManager } = require("./dependencies");
 const { getVersion } = require("../version");
 
 let discoveredPlugins = new Map();
@@ -11,10 +12,21 @@ const pluginRouters = new Map();
 let pluginConfig = {};
 let configPath = "";
 let serverCtx = null;
+let dependencyManager = null;
+let lifecycleQueue = Promise.resolve();
+
+function serializeLifecycle(operation) {
+  const pending = lifecycleQueue.then(operation, operation);
+  lifecycleQueue = pending.catch(() => {});
+  return pending;
+}
 
 async function initPlugins(ctx) {
   serverCtx = ctx;
   configPath = path.join(ctx.config.dataRoot, "plugin-config.json");
+  dependencyManager = new DependencyManager(ctx.config.dataRoot, {
+    log: (msg) => console.log(`[plugins] ${msg}`),
+  });
 
   ctx.app.use("/api/ext/:pluginId", (req, res, next) => {
     const router = pluginRouters.get(req.params.pluginId);
@@ -61,6 +73,7 @@ async function initPlugins(ctx) {
 }
 
 async function shutdownPlugins() {
+  await lifecycleQueue;
   console.log("[plugins] Shutting down all plugins...");
 
   for (const loaded of loadedPlugins.values()) {
@@ -97,6 +110,7 @@ async function loadPlugin(pluginId) {
   }
 
   const plugin = discovered.module;
+  const dependencies = await dependencyManager.prepare(plugin.dependencies);
   const dataDir = getPluginDataDir(serverCtx.config.dataRoot, pluginId);
 
   await fs.promises.mkdir(dataDir, { recursive: true });
@@ -110,11 +124,26 @@ async function loadPlugin(pluginId) {
     router,
     log: (msg) => console.log(`[plugin:${pluginId}] ${msg}`),
     dataDir,
+    dependencies,
     getEnabledVaults: () =>
       configStore.getEnabledVaults(pluginConfig, pluginId),
   };
 
-  await plugin.register(pluginCtx);
+  try {
+    await plugin.register(pluginCtx);
+  } catch (e) {
+    if (plugin.shutdown) {
+      try {
+        await plugin.shutdown();
+      } catch (cleanupError) {
+        console.error(
+          `[plugins] Failed to clean up ${pluginId}: ${cleanupError.message}`,
+        );
+      }
+    }
+
+    throw e;
+  }
 
   pluginRouters.set(pluginId, router);
 
@@ -146,7 +175,11 @@ async function unloadPlugin(pluginId) {
   console.log(`[plugins] Unloaded: ${loaded.name}`);
 }
 
-async function enablePluginForVault(pluginId, vaultId) {
+function enablePluginForVault(pluginId, vaultId) {
+  return serializeLifecycle(() => enablePlugin(pluginId, vaultId));
+}
+
+async function enablePlugin(pluginId, vaultId) {
   const discovered = discoveredPlugins.get(pluginId);
 
   if (!discovered) {
@@ -159,22 +192,41 @@ async function enablePluginForVault(pluginId, vaultId) {
     throw new Error(`Vault not found: ${vaultId}`);
   }
 
-  const enabledVaults = configStore.getEnabledVaults(pluginConfig, pluginId);
+  // Failed installation must not persist an enabled flag or load a companion.
+  await dependencyManager.prepare(discovered.module.dependencies);
+  const before = [...configStore.getEnabledVaults(pluginConfig, pluginId)];
+  const enabledVaults = [...before];
+  const wasLoaded = loadedPlugins.has(pluginId);
 
   if (!enabledVaults.includes(vaultId)) {
     enabledVaults.push(vaultId);
     configStore.setEnabledVaults(pluginConfig, pluginId, enabledVaults);
+  }
+
+  try {
+    if (!wasLoaded) {
+      await loadPlugin(pluginId);
+    }
+
+    const loaded = loadedPlugins.get(pluginId);
+
+    if (loaded?.module?.onVaultEnabled) {
+      await loaded.module.onVaultEnabled(vaultId, vaultPath);
+    }
+
     await configStore.save(configPath, pluginConfig);
-  }
+  } catch (e) {
+    configStore.setEnabledVaults(pluginConfig, pluginId, before);
 
-  if (!loadedPlugins.has(pluginId)) {
-    await loadPlugin(pluginId);
-  }
+    if (!wasLoaded && loadedPlugins.has(pluginId)) {
+      await unloadPlugin(pluginId);
+    } else if (wasLoaded && !before.includes(vaultId)) {
+      await loadedPlugins
+        .get(pluginId)
+        ?.module?.onVaultDisabled?.(vaultId, vaultPath);
+    }
 
-  const loaded = loadedPlugins.get(pluginId);
-
-  if (loaded?.module?.onVaultEnabled) {
-    await loaded.module.onVaultEnabled(vaultId, vaultPath);
+    throw e;
   }
 
   // Broadcast to any open tabs on this vault so they load the plugin properly.
@@ -195,7 +247,11 @@ async function enablePluginForVault(pluginId, vaultId) {
   }
 }
 
-async function disablePluginForVault(pluginId, vaultId) {
+function disablePluginForVault(pluginId, vaultId) {
+  return serializeLifecycle(() => disablePlugin(pluginId, vaultId));
+}
+
+async function disablePlugin(pluginId, vaultId) {
   const discovered = discoveredPlugins.get(pluginId);
 
   if (!discovered) {

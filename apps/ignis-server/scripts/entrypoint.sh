@@ -144,25 +144,5 @@ else
 fi
 
 
-# Install obsidian-headless (ob CLI) if not already present.
-# Not included in the image for legal reasons - installed at runtime.
-if ! command -v ob &>/dev/null; then
-  echo "[ignis] Installing obsidian-headless..."
-
-  if npm install -g --prefix /usr/local obsidian-headless --silent 2>/dev/null; then
-    OB_VERSION=$(ob --version 2>/dev/null)
-
-    if [ -n "$OB_VERSION" ]; then
-      echo "[ignis] obsidian-headless $OB_VERSION installed."
-    else
-      echo "[ignis] WARNING: obsidian-headless installed but 'ob' command not working."
-    fi
-  else
-    echo "[ignis] WARNING: Failed to install obsidian-headless. Headless sync will not be available."
-  fi
-else
-  echo "[ignis] obsidian-headless $(ob --version 2>/dev/null) available."
-fi
-
 # Run as the determined user
 exec gosu "$RUN_USER" node /app/apps/ignis-server/server/index.js

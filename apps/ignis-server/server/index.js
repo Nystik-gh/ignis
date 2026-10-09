@@ -29,6 +29,7 @@ const { flushAll } = writeCoalescer;
 writeCoalescer.configure({ writeCoalesceMs: settings.get("writeCoalesceMs") });
 watcher.configure({ ignoredPaths: settings.resolveIgnoreLines() });
 obCli.init({
+  dataRoot: config.dataRoot,
   obHome: path.join(
     getPluginDataDir(config.dataRoot, "headless-sync"),
     "ob-home",

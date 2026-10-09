@@ -32,7 +32,8 @@ function settingDefinitions(tab) {
       items: [
         messageDefinition(
           "Ignis plugins extend server functionality and run alongside your vaults. " +
-            "They are separate from Obsidian's built-in plugins.",
+            "They are separate from Obsidian's built-in plugins. " +
+            "Enabling a plugin may download required components, which are kept for reuse.",
         ),
       ],
     },

@@ -64,7 +64,9 @@ function getVaults() {
 }
 
 function getLogs(vaultId, limit = 100) {
-  return fetchJson(`/logs?vaultId=${encodeURIComponent(vaultId)}&limit=${limit}`);
+  return fetchJson(
+    `/logs?vaultId=${encodeURIComponent(vaultId)}&limit=${limit}`,
+  );
 }
 
 module.exports = {

@@ -30,6 +30,7 @@
     "@noble/hashes": "^2.2.0",
     "esbuild": "^0.20.0",
     "esbuild-svelte": "^0.9.4",
+    "isomorphic-git": "1.42.2",
     "lucide-svelte": "^0.577.0",
     "oxlint": "^1.70.0",
     "path-browserify": "^1.0.1",

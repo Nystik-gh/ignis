@@ -6,15 +6,6 @@ const SIGNIN_ATTEMPTS = 3;
 const SIGNIN_RETRY_DELAY_MS = 5000;
 
 let signinRetryDelayMs = SIGNIN_RETRY_DELAY_MS;
-let obInstalled = null;
-
-function isObInstalled() {
-  if (obInstalled === null) {
-    obInstalled = obCli.checkInstalled().installed;
-  }
-
-  return obInstalled;
-}
 
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -154,7 +145,18 @@ async function resolveSignin(credentials, relayed, relayAgain) {
     return relayed;
   }
 
-  if (!isObInstalled()) {
+  let installed = obCli.checkInstalled().installed;
+
+  // Install the fallback CLI only when the relay actually needs it.
+  if (!installed && outcome !== "login-failed" && obCli.ensureInstalled) {
+    try {
+      installed = (await obCli.ensureInstalled()).installed;
+    } catch (e) {
+      console.warn(`[proxy] signin: could not prepare ob CLI: ${e.message}`);
+    }
+  }
+
+  if (!installed) {
     if (outcome === "login-failed") {
       return relayed;
     }
@@ -173,7 +175,6 @@ function _setSigninRetryDelayMs(ms) {
 // Test-only.
 function _setObCli(stub) {
   obCli = stub;
-  obInstalled = null;
 }
 
 module.exports = {

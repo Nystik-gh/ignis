@@ -12,6 +12,7 @@ module.exports = {
   //TODO: add server plugin manifest
 
   obsidianPlugin: path.join(__dirname, "obsidian"),
+  dependencies: [obCli.HEADLESS_DEPENDENCY],
 
   _ctx: null,
   _obStatus: null,
@@ -20,6 +21,7 @@ module.exports = {
 
   async register(ctx) {
     this._ctx = ctx;
+    obCli.useManagedCli(ctx.dependencies.resolve("obsidian-headless"));
 
     this._obStatus = obCli.checkInstalled();
 

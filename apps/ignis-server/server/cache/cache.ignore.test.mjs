@@ -46,7 +46,7 @@ afterEach(() => {
 });
 
 describe("a crawl under a configured ignore list", () => {
-  it("keeps the paths in the tree and their directories out of the revalidation set", async () => {
+  it("drops ignored entries from the tree and their parent directories out of the revalidation set", async () => {
     watcher.configure({ ignoredPaths: ["@eaDir"] });
 
     seed("a.md", "a");
@@ -55,9 +55,8 @@ describe("a crawl under a configured ignore list", () => {
 
     const entry = await build();
 
-    expect(entry.response.tree["@eaDir/thumb.jpg"]).toMatchObject({
-      type: "file",
-    });
+    expect(entry.response.tree["@eaDir/thumb.jpg"]).toBeUndefined();
+    expect(entry.response.tree["notes/@eaDir/thumb.jpg"]).toBeUndefined();
     expect(entry.dirMtimes["@eaDir"]).toBeUndefined();
     expect(entry.dirMtimes["notes/@eaDir"]).toBeUndefined();
     expect(entry.dirMtimes["notes"]).toEqual(expect.any(Number));
@@ -99,6 +98,10 @@ describe("a crawl under a configured ignore list", () => {
   });
 
   it("does not read a path a new pattern covers as drift", async () => {
+    // note: at the time of the initial build the watcher has the *default*
+    // ignored list (just `.git`), so `@eaDir/thumb.jpg` is still in the tree.
+    // We then configure `@eaDir` as ignored and remove the directory, and
+    // assert the reconcile treats the removal as a no-op (not drift).
     seed("a.md", "a");
     seed("@eaDir/thumb.jpg", "t");
 
@@ -116,6 +119,50 @@ describe("a crawl under a configured ignore list", () => {
     expect(result.drifted).toBe(false);
     expect(await build()).toBe(entry);
   });
+});
+
+describe("a crawl under the default ignore rules", () => {
+  // Mirrors the default ignoreRules shipped in apps/ignis-server/server/settings.js:
+  //   { name: "System", patterns: [".git", ".trash", "node_modules", "@eaDir", "#recycle"] }
+  // For each pattern we seed a directory of the same name (the test harness
+  // names the directory after the pattern; for `#recycle` we seed under
+  // `#recycle` so `isIgnoredPath` matches). The watcher escapes the leading
+  // `#` so it is treated as a literal segment.
+  const DEFAULT_RULES = [
+    ".git",
+    ".trash",
+    "node_modules",
+    "@eaDir",
+    "#recycle",
+  ];
+
+  it.each(DEFAULT_RULES)(
+    "drops a nested tree under %s and does not descend into it",
+    async (pattern) => {
+      watcher.configure({ ignoredPaths: [pattern] });
+
+      const ignoredRoot = pattern;
+
+      seed("a.md", "a");
+      seed(`${ignoredRoot}/nested/leaf.md`, "leaf");
+      seed(`${ignoredRoot}/nested/deeper/leaf.md`, "leaf");
+
+      const entry = await build();
+
+      // the ignored directory itself is not in the tree
+      expect(entry.response.tree[ignoredRoot]).toBeUndefined();
+
+      // nothing under the ignored directory is in the tree
+      for (const key of Object.keys(entry.response.tree)) {
+        expect(key === "a.md" || !key.startsWith(ignoredRoot + "/")).toBe(true);
+      }
+
+      // the ignored directory's mtime was not recorded for revalidation
+      expect(entry.dirMtimes[ignoredRoot]).toBeUndefined();
+      expect(entry.dirMtimes[`${ignoredRoot}/nested`]).toBeUndefined();
+      expect(entry.dirMtimes[`${ignoredRoot}/nested/deeper`]).toBeUndefined();
+    },
+  );
 });
 
 describe("the crawl's heavy-plugin line", () => {

@@ -38,7 +38,7 @@ const {
 const { invalidateVault } = require("./invalidate");
 const { suggestionsForTree } = require("./ignore-suggestions");
 
-async function walkTree(rootPath) {
+async function walkTree(rootPath, { includeIgnored = false } = {}) {
   const tree = {};
   const dirMtimes = {};
 
@@ -53,6 +53,15 @@ async function walkTree(rootPath) {
 
     for (const entry of entries) {
       const relPath = prefix ? prefix + "/" + entry.name : entry.name;
+
+      // mirror the chokidar watcher's ignore list during the bootstrap
+      // walk so ignored entries are neither added to the tree nor descended
+      // into. callers can opt out via { includeIgnored: true } to retain
+      // the pre-fix behaviour (used by reconcile with includeIgnored).
+      if (!includeIgnored && watcher.isIgnoredPath(relPath)) {
+        continue;
+      }
+
       const full = path.join(dir, entry.name);
 
       if (entry.isDirectory()) {
@@ -96,8 +105,8 @@ function logIgnoreSuggestions(vaultId, tree) {
   }
 }
 
-async function crawlVault(vaultId, vaultPath) {
-  const result = await walkTree(vaultPath);
+async function crawlVault(vaultId, vaultPath, { includeIgnored = false } = {}) {
+  const result = await walkTree(vaultPath, { includeIgnored });
 
   lastCrawls.set(vaultId, Date.now());
   logIgnoreSuggestions(vaultId, result.tree);
@@ -386,7 +395,11 @@ async function reconcileVault(vaultId, { includeIgnored = false } = {}) {
   const snapshot = pendingRelPaths(vaultPath);
 
   try {
-    const { tree, dirMtimes } = await crawlVault(vaultId, vaultPath);
+    const { tree, dirMtimes } = await crawlVault(
+      vaultId,
+      vaultPath,
+      { includeIgnored },
+    );
 
     const entry = cache.get(vaultId);
 

@@ -134,7 +134,8 @@ describe("a vault that matches its stored tree", () => {
 
     const entry = await build();
 
-    expect(entry.response.tree[".git/HEAD"]).toMatchObject({ type: "file" });
+    expect(entry.response.tree[".git/HEAD"]).toBeUndefined();
+    expect(entry.response.tree[".git"]).toBeUndefined();
     expect(entry.dirMtimes[".git"]).toBeUndefined();
 
     seed(".git/objects/aa/bb", "obj");

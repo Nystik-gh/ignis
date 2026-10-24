@@ -44,12 +44,6 @@ else
 fi
 
 
-mkdir -p /app/data
-# Best-effort: a read-only or root_squash mount forbids chown, but PUID/PGID may already have access.
-for dir in /app/obsidian-app /app/data /vaults; do
-  chown -R "$PUID:$PGID" "$dir" 2>/dev/null || echo "[ignis] WARNING: could not chown $dir (read-only mount or NFS root_squash); continuing. Ensure PUID/PGID can read+write it."
-done
-
 OBSIDIAN_DIR="/app/obsidian-app"
 OBSIDIAN_PIN="${IGNIS_OBSIDIAN_PIN:?IGNIS_OBSIDIAN_PIN is not set}"
 OBSIDIAN_STAMP="$OBSIDIAN_DIR/.obsidian-version"
@@ -143,6 +137,13 @@ else
   echo "[ignis] Obsidian already set up (v${OBSIDIAN_VERSION})."
 fi
 
+
+# Must run after the Obsidian install, which unpacks as root.
+mkdir -p /app/data
+# Best-effort: a read-only or root_squash mount forbids chown, but PUID/PGID may already have access.
+for dir in /app/obsidian-app /app/data /vaults; do
+  chown -R "$PUID:$PGID" "$dir" 2>/dev/null || echo "[ignis] WARNING: could not chown $dir (read-only mount or NFS root_squash); continuing. Ensure PUID/PGID can read+write it."
+done
 
 # Install obsidian-headless (ob CLI) if not already present.
 # Not included in the image for legal reasons - installed at runtime.

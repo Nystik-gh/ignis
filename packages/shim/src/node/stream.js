@@ -1,3 +1,4 @@
+import { processShim } from "../process.js";
 import { EventEmitter } from "./events.js";
 
 let warned = false;
@@ -14,11 +15,34 @@ function warnNoDataFlow(method) {
   );
 }
 
-export class Stream extends EventEmitter {
-  pipe(destination) {
-    warnNoDataFlow("pipe");
-    return destination;
+export function Stream() {
+  EventEmitter.call(this);
+}
+
+Object.setPrototypeOf(Stream.prototype, EventEmitter.prototype);
+Object.setPrototypeOf(Stream, EventEmitter);
+
+Stream.prototype.pipe = function (destination) {
+  warnNoDataFlow("pipe");
+  return destination;
+};
+
+export function pipeline(...streams) {
+  warnNoDataFlow("pipeline");
+
+  const callback =
+    typeof streams[streams.length - 1] === "function" ? streams.pop() : null;
+
+  if (callback) {
+    processShim.nextTick(
+      callback,
+      new Error(
+        "stream.pipeline() failed: stream data flow is not implemented in the web version.",
+      ),
+    );
   }
+
+  return streams[streams.length - 1];
 }
 
 export class Readable extends Stream {

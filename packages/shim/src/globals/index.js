@@ -19,6 +19,13 @@ function installGlobalAlias() {
   window.global = window;
 }
 
+const RENDERER_DIR = "/opt/Obsidian/resources/electron.asar/renderer";
+
+function installDirnameAndFilename() {
+  window.__dirname = RENDERER_DIR;
+  window.__filename = `${RENDERER_DIR}/init.js`;
+}
+
 function installContextMenuFix() {
   // hacky fix to prevent browser from showing context menu while allowing obsidian context menu
   window.addEventListener(
@@ -41,6 +48,7 @@ function installContextMenuFix() {
 
 export function installGlobals() {
   installGlobalAlias();
+  installDirnameAndFilename();
   installProcess();
   installBuffer();
   installFetchShim();

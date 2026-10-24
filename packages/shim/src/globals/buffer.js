@@ -161,4 +161,6 @@ export function installBuffer() {
       return ENCODINGS.includes((encoding || "").toLowerCase());
     },
   };
+
+  window.Buffer.allocUnsafeSlow = window.Buffer.allocUnsafe;
 }

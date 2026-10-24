@@ -41,4 +41,21 @@ describe("window.require", () => {
       expect(required.writeFile).toBe(promises.writeFile);
     }
   });
+
+  it("resolves events and node:events to the EventEmitter constructor", () => {
+    const EventEmitter = window.require("events");
+
+    expect(typeof EventEmitter).toBe("function");
+    expect(window.require("node:events")).toBe(EventEmitter);
+    expect(EventEmitter.EventEmitter).toBe(EventEmitter);
+    expect(new EventEmitter().emit("ping")).toBe(false);
+  });
+
+  it("resolves buffer to a module object exposing the Buffer global", () => {
+    expect(window.require("buffer").Buffer).toBe(window.Buffer);
+  });
+
+  it("resolves tty to a shim that reports no terminal", () => {
+    expect(window.require("tty").isatty(1)).toBe(false);
+  });
 });

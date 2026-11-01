@@ -1,11 +1,12 @@
 // Bridges WebSocket file events to the fs shim's metadata/content caches and fs.watch listeners.
 // The WebSocket itself is owned by ws-client.js; this module is a consumer.
 
-import { isRecentSentOp, sentOpCount } from "./echo-guard.js";
+import { isRecentSentOp, markedSince, sentOpCount } from "./echo-guard.js";
 import { hasUnconfirmedWrite } from "./write-coalescer.js";
-import { normalize } from "../util/path.js";
+import { isPathInSubtree, normalize } from "../util/path.js";
 
 const RESYNC_DEBOUNCE_MS = 1000;
+const MAX_FOLLOW_UP_RESYNCS = 3;
 const METADATA_CHANNEL = "metadata";
 
 function parentDir(path) {
@@ -162,10 +163,20 @@ export function createWatcherClient(
   }
 
   // Diffs a full server tree against the cache; each delta goes through the file watcher event handlers.
-  function reconcile(tree, pruneMissing = true) {
+  function reconcile(tree, pruneMissing = true, markedDuringFetch = []) {
     const fresh = new Set(Object.keys(tree).map(normalize));
+    let skippedEntry = false;
 
     for (const [path, meta] of Object.entries(tree)) {
+      const underMarkedPath = markedDuringFetch.some((marked) =>
+        isPathInSubtree(path, marked),
+      );
+
+      if (underMarkedPath) {
+        skippedEntry = true;
+        continue;
+      }
+
       const existing = metadataCache.get(path);
 
       if (!existing) {
@@ -189,7 +200,7 @@ export function createWatcherClient(
     }
 
     if (!pruneMissing) {
-      return;
+      return skippedEntry;
     }
 
     // A cache key absent from the fresh tree was deleted while disconnected.
@@ -201,6 +212,8 @@ export function createWatcherClient(
 
       handleDeleted({ path: key });
     }
+
+    return skippedEntry;
   }
 
   async function resync() {
@@ -219,16 +232,30 @@ export function createWatcherClient(
       return;
     }
 
-    treeEtag = result.etag;
-
     const cacheUnchanged =
       appliedEvents === appliedBefore && sentOpCount() === sentOpsBefore;
+    const skippedEntry = reconcile(
+      result.tree,
+      cacheUnchanged,
+      markedSince(sentOpsBefore),
+    );
 
-    reconcile(result.tree, cacheUnchanged);
+    // Only update etag on complete reconcile.
+    if (!skippedEntry) {
+      treeEtag = result.etag;
+      followUpResyncs = 0;
+      return;
+    }
+
+    if (followUpResyncs < MAX_FOLLOW_UP_RESYNCS) {
+      followUpResyncs += 1;
+      scheduleResync();
+    }
   }
 
   // Coalesce a burst of opens into a single resync once the socket settles.
   let resyncTimer = null;
+  let followUpResyncs = 0;
 
   function scheduleResync() {
     if (resyncTimer) {

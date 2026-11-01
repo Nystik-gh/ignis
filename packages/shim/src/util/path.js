@@ -4,4 +4,8 @@ function normalize(p) {
   return (p || "").replace(/\\/g, "/").replace(/^\/+/, "").replace(/\/+$/, "");
 }
 
-export { normalize };
+function isPathInSubtree(path, root) {
+  return path === root || path.startsWith(root + "/");
+}
+
+export { isPathInSubtree, normalize };

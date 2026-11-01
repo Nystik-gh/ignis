@@ -188,6 +188,20 @@ describe("ContentCache server content", () => {
       false,
     );
   });
+
+  it("refuses a fetched result while fills are refused for the path", () => {
+    const cache = new ContentCache(1024);
+
+    cache.refuseFillWhile((path) => path === "dir/a.md");
+
+    expect(
+      cache.setFromServer("/dir/a.md", "server", cache.pathUpdates("dir/a.md")),
+    ).toBe(false);
+    expect(cache.has("dir/a.md")).toBe(false);
+    expect(
+      cache.setFromServer("dir/b.md", "server", cache.pathUpdates("dir/b.md")),
+    ).toBe(true);
+  });
 });
 
 // -- Retained entries ----------------------------------------------------

@@ -47,8 +47,10 @@ export function createFdOps(metadataCache, contentCache, transport) {
 
     // Synchronous fetch fallback
     console.warn("[shim:fs] fd open cache miss, using sync XHR:", resolved);
+    const updatesBeforeFetch = contentCache.pathUpdates(resolved);
     const data = transport.readFileSync(resolved);
-    contentCache.set(resolved, data);
+
+    contentCache.setFromServer(resolved, data, updatesBeforeFetch);
 
     return data;
   }

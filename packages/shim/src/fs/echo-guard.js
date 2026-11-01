@@ -3,16 +3,33 @@ import { normalize } from "../util/path.js";
 
 const ECHO_SUPPRESS_MS = 1500;
 const recentOps = new Map(); // normalized path -> timestamp
+// Number of sent operations at the last time we marked.
+const sentOpsAtLastMark = new Map();
 
 let sentOps = 0;
 
 export function markSentOp(path) {
-  recentOps.set(normalize(path), Date.now());
+  const norm = normalize(path);
+
+  recentOps.set(norm, Date.now());
   sentOps++;
+  sentOpsAtLastMark.set(norm, sentOps);
 }
 
 export function sentOpCount() {
   return sentOps;
+}
+
+export function markedSince(count) {
+  const marked = [];
+
+  for (const [path, sentOpsAtMark] of sentOpsAtLastMark) {
+    if (sentOpsAtMark > count) {
+      marked.push(path);
+    }
+  }
+
+  return marked;
 }
 
 export function isRecentSentOp(path) {

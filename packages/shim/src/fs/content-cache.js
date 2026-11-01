@@ -10,10 +10,15 @@ export class ContentCache {
     this._maxSize = maxSize;
     this._pathUpdates = new Map(); // path -> counter of times content was set or dropped
     this._isRetained = () => false;
+    this._isFillBlocked = () => false;
   }
 
   retainWhile(isRetained) {
     this._isRetained = isRetained;
+  }
+
+  refuseFillWhile(isBlocked) {
+    this._isFillBlocked = isBlocked;
   }
 
   setMaxSize(maxSize) {
@@ -57,7 +62,8 @@ export class ContentCache {
     // only fill empty cache entries that have not been set or dropped in the interim.
     if (
       this._cache.has(norm) ||
-      this.pathUpdates(norm) !== pathUpdatesBeforeFetch
+      this.pathUpdates(norm) !== pathUpdatesBeforeFetch ||
+      this._isFillBlocked(norm)
     ) {
       return false;
     }

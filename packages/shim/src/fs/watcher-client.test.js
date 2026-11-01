@@ -2,8 +2,14 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { createWatcherClient } from "./watcher-client.js";
 import { markSentOp } from "./echo-guard.js";
 import { MetadataCache } from "./metadata-cache.js";
-import { bufferWrite, cancelPending } from "./write-coalescer.js";
+import {
+  bufferWrite,
+  cancelPending,
+  _reset as resetCoalescer,
+} from "./write-coalescer.js";
 import { trackWrite, _reset as resetDurability } from "./write-durability.js";
+import { createFsPromises } from "./promises.js";
+import { ContentCache } from "./content-cache.js";
 
 const RESYNC_DEBOUNCE_MS = 1000;
 
@@ -760,5 +766,192 @@ describe("watcher-client unconfirmed writes", () => {
 
     expect(cache.get("note.md").mtime).toBe(999);
     expect(d.fsWatch._dispatch).toHaveBeenCalledWith("modified", "note.md");
+  });
+});
+
+describe("watcher-client resync during a folder rename", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
+
+  afterEach(() => {
+    resetCoalescer();
+    resetDurability();
+    vi.useRealTimers();
+  });
+
+  it("keeps the renamed tree while the rename waits for a write under the folder", async () => {
+    const metadataCache = new MetadataCache();
+    const d = makeDeps(metadataCache);
+    let releaseWrite;
+    const fsTransport = {
+      writeFile: vi.fn(
+        () =>
+          new Promise((resolve) => {
+            releaseWrite = () => resolve({ mtime: 2, size: 1 });
+          }),
+      ),
+      rename: vi.fn(async () => {}),
+    };
+    const fs = createFsPromises(metadataCache, new ContentCache(), fsTransport);
+
+    metadataCache.set("A", { type: "directory" });
+    metadataCache.set("A/y.md", { type: "file", size: 1, mtime: 1, ctime: 1 });
+
+    const written = fs.writeFile("A/x.md", "x", "utf8");
+    const renamed = fs.rename("A", "B");
+
+    await resyncWith(d, {
+      A: { type: "directory" },
+      "A/y.md": { type: "file", size: 1, mtime: 1, ctime: 1 },
+    });
+
+    expect(metadataCache.keys().sort()).toEqual(["B", "B/x.md", "B/y.md"]);
+
+    releaseWrite();
+    await written;
+    await renamed;
+  });
+});
+
+describe("watcher-client resync during browser operations", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
+
+  afterEach(() => {
+    resetCoalescer();
+    resetDurability();
+    vi.useRealTimers();
+  });
+
+  function seeded(entries) {
+    const metadataCache = new MetadataCache();
+
+    for (const [path, meta] of Object.entries(entries)) {
+      metadataCache.set(path, meta);
+    }
+
+    const d = makeDeps(metadataCache);
+    const fsTransport = {
+      rename: vi.fn(async () => {}),
+      mkdir: vi.fn(async () => {}),
+      writeFile: vi.fn(async () => ({ mtime: 50, size: 3 })),
+    };
+    const fs = createFsPromises(metadataCache, new ContentCache(), fsTransport);
+
+    return { metadataCache, d, fs };
+  }
+
+  async function startStalledResync(d) {
+    let resolveTree;
+
+    d.transport.fetchTree.mockReturnValue(
+      new Promise((resolve) => {
+        resolveTree = resolve;
+      }),
+    );
+    d.wsClient.onOpen.mock.calls[0][0]();
+    await vi.advanceTimersByTimeAsync(RESYNC_DEBOUNCE_MS);
+
+    return async (tree) => {
+      resolveTree({ tree, etag: '"old"' });
+      await vi.advanceTimersByTimeAsync(0);
+    };
+  }
+
+  it("a tree fetched before a folder rename does not recreate the old folder", async () => {
+    const file = { type: "file", size: 1, mtime: 1, ctime: 1 };
+    const { metadataCache, d, fs } = seeded({
+      "fetch-rename": { type: "directory" },
+      "fetch-rename/x.md": file,
+    });
+    const applyTree = await startStalledResync(d);
+
+    await fs.rename("fetch-rename", "fetch-renamed");
+    await vi.advanceTimersByTimeAsync(2000);
+    await applyTree({
+      "fetch-rename": { type: "directory" },
+      "fetch-rename/x.md": file,
+    });
+
+    expect(metadataCache.keys().sort()).toEqual([
+      "fetch-renamed",
+      "fetch-renamed/x.md",
+    ]);
+  });
+
+  it("a tree fetched before a write does not apply its older stat to the file", async () => {
+    const old = { type: "file", size: 3, mtime: 1, ctime: 1 };
+    const { metadataCache, d, fs } = seeded({ "fetch-write.md": old });
+    const applyTree = await startStalledResync(d);
+
+    await fs.writeFile("fetch-write.md", "new", "utf8");
+    await vi.advanceTimersByTimeAsync(2000);
+    await applyTree({ "fetch-write.md": old });
+
+    expect(metadataCache.get("fetch-write.md")).toMatchObject({ mtime: 50 });
+    expect(d.contentCache.invalidate).not.toHaveBeenCalledWith(
+      "fetch-write.md",
+    );
+    expect(d.fsWatch._dispatch).not.toHaveBeenCalled();
+  });
+
+  it("a tree fetched during a rename still adds a file under another path", async () => {
+    const { metadataCache, d, fs } = seeded({
+      "fetch-other": { type: "directory" },
+    });
+    const applyTree = await startStalledResync(d);
+
+    await fs.rename("fetch-other", "fetch-other-moved");
+    await vi.advanceTimersByTimeAsync(2000);
+    await applyTree({
+      "fetch-created.md": { type: "file", size: 4, mtime: 9, ctime: 9 },
+    });
+
+    expect(metadataCache.get("fetch-created.md")).toMatchObject({ size: 4 });
+  });
+
+  it("a file skipped under a marked folder is added by the follow-up resync", async () => {
+    const offline = { type: "file", size: 2, mtime: 5, ctime: 5 };
+    const { metadataCache, d, fs } = seeded({
+      "fetch-mk": { type: "directory" },
+    });
+    const applyTree = await startStalledResync(d);
+    const tree = {
+      "fetch-mk": { type: "directory" },
+      "fetch-mk/offline.md": offline,
+    };
+
+    await fs.mkdir("fetch-mk", { recursive: true });
+    await vi.advanceTimersByTimeAsync(2000);
+    await applyTree(tree);
+
+    expect(metadataCache.has("fetch-mk/offline.md")).toBe(false);
+
+    d.transport.fetchTree.mockResolvedValue({ tree, etag: '"new"' });
+    await vi.advanceTimersByTimeAsync(RESYNC_DEBOUNCE_MS);
+
+    expect(d.transport.fetchTree).toHaveBeenLastCalledWith(null);
+    expect(metadataCache.get("fetch-mk/offline.md")).toMatchObject({
+      size: 2,
+    });
+  });
+
+  it("a tree fetched after a write applies to the written file", async () => {
+    const { metadataCache, d, fs } = seeded({
+      "fetch-after.md": { type: "file", size: 3, mtime: 1, ctime: 1 },
+    });
+
+    await fs.writeFile("fetch-after.md", "new", "utf8");
+    await vi.advanceTimersByTimeAsync(2000);
+
+    const applyTree = await startStalledResync(d);
+
+    await applyTree({
+      "fetch-after.md": { type: "file", size: 9, mtime: 99, ctime: 1 },
+    });
+
+    expect(metadataCache.get("fetch-after.md")).toMatchObject({ mtime: 99 });
   });
 });

@@ -1,6 +1,6 @@
 import { resolvePathInfo } from "./transforms.js";
 import { markSentOp } from "./echo-guard.js";
-import { enqueue, flushPending, hasPending } from "./write-coalescer.js";
+import { enqueueMutation } from "./write-coalescer.js";
 import { attachFollowUp } from "./write-durability.js";
 
 function invalidTime(name) {
@@ -81,11 +81,7 @@ export function createUtimes(metadataCache, transport) {
         });
     };
 
-    if (hasPending(resolved)) {
-      flushPending(resolved);
-    }
-
-    return enqueue(resolved, () => {
+    return enqueueMutation([resolved], () => {
       const attached = attachFollowUp(resolved, send);
 
       if (!attached) {

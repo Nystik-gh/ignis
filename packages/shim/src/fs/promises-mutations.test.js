@@ -4,6 +4,8 @@ import { registerPathResolver, resolvePath, _reset } from "./transforms.js";
 import { isRecentSentOp } from "./echo-guard.js";
 import { MetadataCache } from "./metadata-cache.js";
 import { ContentCache } from "./content-cache.js";
+import { _reset as resetCoalescer } from "./write-coalescer.js";
+import { _reset as resetDurability } from "./write-durability.js";
 
 function makeDeps() {
   const store = new Map();
@@ -13,6 +15,18 @@ function makeDeps() {
     get: (p) => (store.has(p) ? store.get(p) : null),
     set: (p, m) => store.set(p, m),
     delete: (p) => store.delete(p),
+    keys: () => [...store.keys()],
+    deleteSubtree: (p) => {
+      const removed = [...store.keys()].filter(
+        (key) => key === p || key.startsWith(p + "/"),
+      );
+
+      for (const key of removed) {
+        store.delete(key);
+      }
+
+      return removed;
+    },
     toStat: (p) =>
       store.has(p)
         ? {
@@ -203,11 +217,170 @@ describe("promises readFile racing a write", () => {
     const fs = createFsPromises(metadataCache, contentCache, transport);
     const read = fs.readFile("note.md", "utf8");
 
+    await vi.waitFor(() => expect(transport.readFile).toHaveBeenCalled());
     await fs.writeFile("note.md", "local", "utf8");
     release();
     await read;
 
     expect(await fs.readFile("note.md", "utf8")).toBe("local");
     expect(transport.readFile).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("promises copyFile", () => {
+  afterEach(() => {
+    _reset();
+    resetCoalescer();
+    resetDurability();
+  });
+
+  function makeCopyFs() {
+    const transport = {
+      copyFile: vi.fn(async () => {}),
+      stat: vi.fn(async () => ({ type: "file", size: 1 })),
+    };
+    const metadataCache = new MetadataCache();
+    const contentCache = new ContentCache();
+    const fs = createFsPromises(metadataCache, contentCache, transport);
+
+    return { fs, metadataCache, contentCache, transport };
+  }
+
+  it("sends the resolved source path", async () => {
+    registerPathResolver(
+      (p) => p === "logical.md",
+      () => "physical.md",
+    );
+
+    const { fs, metadataCache, transport } = makeCopyFs();
+
+    metadataCache.set("physical.md", { type: "file", size: 1 });
+    await fs.copyFile("logical.md", "dest.md");
+
+    expect(transport.copyFile).toHaveBeenCalledWith("physical.md", "dest.md");
+  });
+
+  it("drops the content cached for the destination when the source's content is not cached", async () => {
+    const { fs, metadataCache, contentCache } = makeCopyFs();
+
+    metadataCache.set("src.md", { type: "file", size: 3 });
+    metadataCache.set("dest.md", { type: "file", size: 5 });
+    contentCache.set("dest.md", "stale");
+    await fs.copyFile("src.md", "dest.md");
+
+    expect(contentCache.get("dest.md")).toBeNull();
+  });
+
+  it("gives the destination the source's cached content and metadata while the copy is sent", async () => {
+    const { fs, metadataCache, contentCache, transport } = makeCopyFs();
+    let release;
+
+    transport.copyFile.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          release = resolve;
+        }),
+    );
+    metadataCache.set("src.md", { type: "file", size: 3, mtime: 1 });
+    contentCache.set("src.md", "src");
+    metadataCache.set("dest.md", { type: "file", size: 5, mtime: 2 });
+    contentCache.set("dest.md", "stale");
+
+    const copied = fs.copyFile("src.md", "dest.md");
+
+    expect(contentCache.get("dest.md")).toBe("src");
+    expect(metadataCache.get("dest.md")).toEqual({
+      type: "file",
+      size: 3,
+      mtime: 1,
+    });
+
+    await new Promise((r) => setTimeout(r, 0));
+    release();
+    await copied;
+  });
+
+  it("keeps the destination in the cache when the stat after the copy fails", async () => {
+    const { fs, metadataCache, contentCache, transport } = makeCopyFs();
+
+    metadataCache.set("src.md", { type: "file", size: 3, mtime: 1 });
+    contentCache.set("src.md", "src");
+    transport.stat.mockRejectedValueOnce(new Error("offline"));
+
+    await expect(fs.copyFile("src.md", "dest.md")).rejects.toThrow("offline");
+
+    expect(metadataCache.get("dest.md")).toMatchObject({ size: 3 });
+    expect(contentCache.get("dest.md")).toBe("src");
+  });
+
+  it("a failed copy to a new path removes the destination from the caches", async () => {
+    const { fs, metadataCache, contentCache, transport } = makeCopyFs();
+
+    metadataCache.set("src.md", { type: "file", size: 3, mtime: 1 });
+    contentCache.set("src.md", "src");
+    transport.copyFile.mockRejectedValueOnce(new Error("offline"));
+
+    await expect(fs.copyFile("src.md", "dest.md")).rejects.toThrow("offline");
+
+    expect(metadataCache.has("dest.md")).toBe(false);
+    expect(contentCache.get("dest.md")).toBeNull();
+  });
+
+  it("a failed copy over an existing file restores its content and metadata", async () => {
+    const { fs, metadataCache, contentCache, transport } = makeCopyFs();
+    const destMeta = { type: "file", size: 5, mtime: 2 };
+
+    metadataCache.set("src.md", { type: "file", size: 3, mtime: 1 });
+    contentCache.set("src.md", "src");
+    metadataCache.set("dest.md", destMeta);
+    contentCache.set("dest.md", "dest!");
+    transport.copyFile.mockRejectedValueOnce(new Error("offline"));
+
+    await expect(fs.copyFile("src.md", "dest.md")).rejects.toThrow("offline");
+
+    expect(metadataCache.get("dest.md")).toBe(destMeta);
+    expect(contentCache.get("dest.md")).toBe("dest!");
+  });
+});
+
+describe("promises stat existence", () => {
+  afterEach(() => {
+    _reset();
+    resetCoalescer();
+    resetDurability();
+  });
+
+  it("answers ENOENT from the cache for a missing non-redirected path, no transport", async () => {
+    const deps = makeDeps();
+    const fs = createFsPromises(
+      deps.metadataCache,
+      deps.contentCache,
+      deps.transport,
+    );
+
+    await expect(fs.stat("missing.md")).rejects.toMatchObject({
+      code: "ENOENT",
+    });
+    expect(deps.transport.stat).not.toHaveBeenCalled();
+  });
+
+  it("asks the server for a redirected miss", async () => {
+    registerPathResolver(
+      (p) => p === "logical.md",
+      () => "physical.md",
+    );
+
+    const deps = makeDeps();
+    const fs = createFsPromises(
+      deps.metadataCache,
+      deps.contentCache,
+      deps.transport,
+    );
+
+    const stat = await fs.stat("logical.md");
+
+    expect(stat.isFile()).toBe(true);
+    expect(deps.transport.stat).toHaveBeenCalledWith("physical.md");
+    expect(deps.store.has("physical.md")).toBe(true);
   });
 });

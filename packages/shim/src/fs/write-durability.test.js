@@ -100,6 +100,7 @@ describe("retry on failure", () => {
 
     expect(failed).toEqual(["a.md"]);
     expect(wd.listFailed()).toEqual(["a.md"]);
+    expect(wd.hasFailedWrite("a.md")).toBe(true);
     expect(wd.getState()).toBe("clean");
     expect(wd.getDetail()).toEqual({ pending: 0, retrying: 0 });
   });
@@ -145,6 +146,44 @@ describe("hasWriteInProgress", () => {
 
     expect(wd.listFailed()).toEqual(["a.md"]);
     expect(wd.hasWriteInProgress("a.md")).toBe(false);
+  });
+});
+
+describe("hasFailedWrite", () => {
+  async function giveUp(path) {
+    transport.writeFile.mockRejectedValue(new Error("offline"));
+    wd.trackWrite(path).failure("d", "utf-8", null);
+
+    for (let i = 0; i < 9; i++) {
+      await vi.advanceTimersByTimeAsync(30000);
+    }
+  }
+
+  it("is false once retryAll lands the given-up write", async () => {
+    await giveUp("a.md");
+    transport.writeFile.mockResolvedValue({ mtime: 1, size: 1 });
+    wd.retryAll();
+    await vi.advanceTimersByTimeAsync(1);
+
+    expect(wd.hasFailedWrite("a.md")).toBe(false);
+  });
+
+  it("is false once a fresh write supersedes the given-up write", async () => {
+    await giveUp("a.md");
+    wd.trackWrite("a.md");
+
+    expect(wd.hasFailedWrite("a.md")).toBe(false);
+  });
+
+  it("is false for a silent write that gives up", async () => {
+    transport.writeFile.mockRejectedValue(new Error("offline"));
+    wd.trackWrite("cfg.json", { silent: true }).failure("d", "utf-8", null);
+
+    for (let i = 0; i < 9; i++) {
+      await vi.advanceTimersByTimeAsync(30000);
+    }
+
+    expect(wd.hasFailedWrite("cfg.json")).toBe(false);
   });
 });
 
@@ -286,6 +325,22 @@ describe("supersession", () => {
 
     t2.success();
 
+    expect(wd.getState()).toBe("clean");
+  });
+
+  it("a silent write that supersedes a retrying write keeps it surfacing as pending", () => {
+    wd.trackWrite("a.md").failure("old", "utf-8", null);
+    wd.trackWrite("a.md", { silent: true }).failure("new", "utf-8", null);
+
+    expect(wd.listPending()).toEqual(["a.md"]);
+    expect(wd.getState()).toBe("pending");
+  });
+
+  it("a silent write that supersedes a silent retrying write stays silent", () => {
+    wd.trackWrite("cfg.json", { silent: true }).failure("old", "utf-8", null);
+    wd.trackWrite("cfg.json", { silent: true }).failure("new", "utf-8", null);
+
+    expect(wd.listPending()).toEqual([]);
     expect(wd.getState()).toBe("clean");
   });
 });
@@ -448,6 +503,25 @@ describe("onFailureChange", () => {
 
     // A fresh write to the given-up path retires its failure.
     wd.trackWrite("a.md");
+
+    expect(fired).toBe(1);
+    expect(wd.listFailed()).toEqual([]);
+  });
+
+  it("fires when retryNow sends a given-up write again, and listFailed drops it", async () => {
+    transport.writeFile.mockRejectedValue(new Error("offline"));
+    let fired = 0;
+    wd.onFailureChange(() => fired++);
+
+    const track = wd.trackWrite("a.md");
+    track.failure("d", "utf-8", null);
+
+    for (let i = 0; i < 9; i++) {
+      await vi.advanceTimersByTimeAsync(30000);
+    }
+
+    transport.writeFile.mockResolvedValue({ mtime: 1, size: 1 });
+    await wd.retryNow("a.md");
 
     expect(fired).toBe(1);
     expect(wd.listFailed()).toEqual([]);

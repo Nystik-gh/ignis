@@ -44,23 +44,31 @@ function toRelative(vaultRoot, resolved) {
   return toVaultRel(path.relative(vaultRoot, resolved));
 }
 
+function isInTrash(p) {
+  return p === ".trash" || p.startsWith(".trash/");
+}
+
+function isUntracked(p) {
+  // .trash is always tracked.
+  return watcher.isIgnoredPath(p) && !isInTrash(p);
+}
+
 function isApplicable(event) {
   return (
-    !watcher.isIgnoredPath(event.path) &&
-    !(event.toPath && watcher.isIgnoredPath(event.toPath))
+    !isUntracked(event.path) && !(event.toPath && isUntracked(event.toPath))
   );
 }
 
-// notify rename to or from ignored directory
+// notify rename to or from untracked directory
 async function renameEvent(fromPath, toPath, toResolved) {
-  const fromIgnored = watcher.isIgnoredPath(fromPath);
-  const toIgnored = watcher.isIgnoredPath(toPath);
+  const fromUntracked = isUntracked(fromPath);
+  const toUntracked = isUntracked(toPath);
 
-  if (fromIgnored === toIgnored) {
+  if (fromUntracked === toUntracked) {
     return { type: "rename", path: fromPath, toPath };
   }
 
-  if (toIgnored) {
+  if (toUntracked) {
     return { type: "deleted", path: fromPath };
   }
 

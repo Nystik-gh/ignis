@@ -433,6 +433,35 @@ describe("mutation routes apply to a watched vault's tree", () => {
     }
   });
 
+  it("keeps a file trashed into an ignored .trash in the tree", async () => {
+    watcher.configure({ ignoredPaths: [".trash"] });
+
+    try {
+      await tree();
+      await mkdir(".trash");
+      await writeFile("kept/x.md", "first");
+      await settle();
+
+      expect((await rename("kept/x.md", ".trash/x.md")).ok).toBe(true);
+      await settle();
+
+      const trashed = await tree();
+
+      expect(trashed[".trash/x.md"]).toBeDefined();
+      expect(trashed["kept/x.md"]).toBeUndefined();
+
+      expect((await rename(".trash/x.md", "kept/x.md")).ok).toBe(true);
+      await settle();
+
+      const restored = await tree();
+
+      expect(restored["kept/x.md"]).toBeDefined();
+      expect(restored[".trash/x.md"]).toBeUndefined();
+    } finally {
+      watcher.configure({ ignoredPaths: [".git"] });
+    }
+  });
+
   it("skips a write to a path a configured pattern covers", async () => {
     watcher.configure({ ignoredPaths: ["@eaDir"] });
 

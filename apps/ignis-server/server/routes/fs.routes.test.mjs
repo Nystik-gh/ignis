@@ -193,6 +193,21 @@ describe("fs route handlers reconcile the coalescer buffer (WRITE_COALESCE_MS > 
   });
 });
 
+describe("appendFile route", () => {
+  it("appends base64 content as bytes", async () => {
+    fs.writeFileSync(abs("a.bin"), Buffer.from([1, 2]));
+
+    const res = await postJson("appendFile", {
+      path: "a.bin",
+      content: Buffer.from([3, 255]).toString("base64"),
+      base64: true,
+    });
+
+    expect(res.ok).toBe(true);
+    expect([...fs.readFileSync(abs("a.bin"))]).toEqual([1, 2, 3, 255]);
+  });
+});
+
 describe("tree route root responses come from the bootstrap cache", () => {
   const getTree = async (query) => (await fetch(u(`tree?${query}`))).json();
 

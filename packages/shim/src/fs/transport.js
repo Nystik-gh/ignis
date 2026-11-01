@@ -159,9 +159,11 @@ export const transport = {
   },
 
   async appendFile(path, content) {
+    const isText = typeof content === "string";
     return requestJson("POST", "/appendFile", {
       path: normPath(path),
-      content,
+      content: isText ? content : uint8ToBase64(content),
+      base64: !isText,
     });
   },
 
@@ -228,15 +230,5 @@ export const transport = {
     }
 
     return bytes;
-  },
-
-  writeFileSync(path, content, encoding) {
-    const isText = typeof content === "string";
-    requestSync("POST", "/writeFile", {
-      path: normPath(path),
-      content: isText ? content : uint8ToBase64(content),
-      encoding: encoding || (isText ? "utf-8" : "binary"),
-      base64: !isText,
-    });
   },
 };

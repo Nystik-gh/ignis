@@ -26,6 +26,28 @@ function lastInit() {
   return fetchMock.mock.calls.at(-1)[1];
 }
 
+describe("transport appendFile", () => {
+  it("sends text as is", async () => {
+    await transport.appendFile("a.md", "more");
+
+    expect(JSON.parse(lastInit().body)).toMatchObject({
+      path: "a.md",
+      content: "more",
+      base64: false,
+    });
+  });
+
+  it("sends bytes as base64", async () => {
+    await transport.appendFile("a.bin", new Uint8Array([65, 66, 67]));
+
+    expect(JSON.parse(lastInit().body)).toMatchObject({
+      path: "a.bin",
+      content: "QUJD",
+      base64: true,
+    });
+  });
+});
+
 describe("transport keepalive gating", () => {
   it("sets keepalive on a small write", async () => {
     await transport.writeFile("a.md", "hello", "utf-8");

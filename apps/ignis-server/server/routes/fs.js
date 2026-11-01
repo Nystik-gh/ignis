@@ -229,7 +229,7 @@ router.get("/readFile", async (req, res) => {
   }
 });
 
-// POST /api/fs/writeFile { path, content, encoding?, vault? }
+// POST /api/fs/writeFile { path, content, encoding?, base64?, vault? }
 router.post("/writeFile", async (req, res) => {
   const resolved = guardPath(req, res, "body");
 
@@ -266,7 +266,7 @@ router.post("/writeFile", async (req, res) => {
   }
 });
 
-// POST /api/fs/appendFile { path, content, vault? }
+// POST /api/fs/appendFile { path, content, base64?, vault? }
 router.post("/appendFile", async (req, res) => {
   const resolved = guardPath(req, res, "body");
 
@@ -275,8 +275,12 @@ router.post("/appendFile", async (req, res) => {
   }
 
   try {
+    const data = req.body.base64
+      ? Buffer.from(req.body.content, "base64")
+      : req.body.content;
+
     await flushPending(resolved);
-    await fs.promises.appendFile(resolved, req.body.content, "utf-8");
+    await fs.promises.appendFile(resolved, data, "utf-8");
 
     const rel = toRelative(req._vaultRoot, resolved);
 

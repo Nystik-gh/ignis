@@ -52,7 +52,7 @@ function setWorkspaceParam(name) {
     url.searchParams.delete("workspace");
   }
 
-  history.replaceState(null, "", url.toString());
+  history.replaceState(history.state, "", url.toString());
 }
 
 // When ?load=preset is set, copy the named preset from workspaces.json into this tab's per-workspace state file.
@@ -87,7 +87,7 @@ export function loadPresetIfRequested() {
   } finally {
     const url = new URL(window.location.href);
     url.searchParams.delete("load");
-    history.replaceState(null, "", url.toString());
+    history.replaceState(history.state, "", url.toString());
   }
 }
 

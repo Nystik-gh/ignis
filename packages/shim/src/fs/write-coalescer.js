@@ -65,8 +65,7 @@ function performWrite(path, data, encoding, onResult, opts) {
       return result;
     },
     (err) => {
-      // put the failed write in the durability queue, which retries it in the background.
-      track.failure(data, encoding, onResult);
+      track.failure(data, encoding, onResult, err);
       throw err;
     },
   );

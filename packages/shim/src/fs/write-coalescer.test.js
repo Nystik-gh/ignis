@@ -13,6 +13,8 @@ import { isRecentSentOp } from "./echo-guard.js";
 import {
   hasWriteInProgress,
   initWriteDurability,
+  listFailed,
+  onFailure,
   _reset as resetDurability,
 } from "./write-durability.js";
 
@@ -256,5 +258,38 @@ describe("mutation ordering", () => {
 
     expect(order).toEqual(["writeFile dir/a.md", "rm dir"]);
     expect(hasPending("other.md")).toBe(true);
+  });
+});
+
+describe("a write rejected permanently", () => {
+  afterEach(() => {
+    _reset();
+    resetDurability();
+    vi.useRealTimers();
+  });
+
+  it("gives up at once and shows the failure", async () => {
+    vi.useFakeTimers();
+
+    const transport = makeTransport();
+    const rejected = new Error("Request Entity Too Large");
+    const failed = [];
+
+    rejected.code = "UNKNOWN";
+    rejected.status = 413;
+    rejected.permanent = true;
+    transport.writeFile.mockRejectedValue(rejected);
+    initWriteCoalescer(transport);
+    initWriteDurability(transport, enqueue);
+    onFailure((path) => failed.push(path));
+
+    await expect(enqueueWrite("big.png", "x", "binary")).rejects.toBe(rejected);
+
+    expect(failed).toEqual(["big.png"]);
+    expect(listFailed()).toEqual(["big.png"]);
+
+    await vi.advanceTimersByTimeAsync(120_000);
+
+    expect(transport.writeFile).toHaveBeenCalledTimes(1);
   });
 });

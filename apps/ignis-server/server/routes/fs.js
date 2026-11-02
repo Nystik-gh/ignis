@@ -32,7 +32,9 @@ function getVaultRoot(req, res) {
   const vaultPath = config.getVaultPath(vaultId);
 
   if (!vaultPath) {
-    res.status(404).json({ error: "Vault not found", id: vaultId });
+    res
+      .status(404)
+      .json({ error: "Vault not found", code: "ENOVAULT", id: vaultId });
     return null;
   }
 
@@ -133,7 +135,7 @@ function guardPath(req, res, source = "query") {
   const p = source === "body" ? req.body?.path : req.query.path;
 
   if (p === undefined || p === null) {
-    res.status(400).json({ error: "Missing path parameter" });
+    res.status(400).json({ error: "Missing path parameter", code: "EINVAL" });
     return null;
   }
 
@@ -141,7 +143,7 @@ function guardPath(req, res, source = "query") {
   const resolved = resolveVaultPath(vaultRoot, p);
 
   if (!resolved) {
-    res.status(403).json({ error: "Path traversal rejected" });
+    res.status(403).json({ error: "Path traversal rejected", code: "EACCES" });
     return null;
   }
 
@@ -332,14 +334,16 @@ router.post("/rename", async (req, res) => {
   }
 
   if (!req.body?.oldPath || !req.body?.newPath) {
-    return res.status(400).json({ error: "Missing oldPath or newPath" });
+    return res
+      .status(400)
+      .json({ error: "Missing oldPath or newPath", code: "EINVAL" });
   }
 
   const oldResolved = resolveVaultPath(vaultRoot, req.body.oldPath);
   const newResolved = resolveVaultPath(vaultRoot, req.body.newPath);
 
   if (!oldResolved || !newResolved) {
-    return res.status(403).json({ error: "Invalid path" });
+    return res.status(403).json({ error: "Invalid path", code: "EACCES" });
   }
 
   try {
@@ -373,14 +377,16 @@ router.post("/copyFile", async (req, res) => {
   }
 
   if (!req.body?.src || !req.body?.dest) {
-    return res.status(400).json({ error: "Missing src or dest" });
+    return res
+      .status(400)
+      .json({ error: "Missing src or dest", code: "EINVAL" });
   }
 
   const srcResolved = resolveVaultPath(vaultRoot, req.body.src);
   const destResolved = resolveVaultPath(vaultRoot, req.body.dest);
 
   if (!srcResolved || !destResolved) {
-    return res.status(403).json({ error: "Invalid path" });
+    return res.status(403).json({ error: "Invalid path", code: "EACCES" });
   }
 
   try {
@@ -547,7 +553,9 @@ router.post("/batch-read", async (req, res) => {
 
   // The indexer prefetcher (the only caller) batches at 50, so a much larger list is not legitimate.
   if (paths.length > 1000) {
-    return res.status(400).json({ error: "too many paths in batch-read" });
+    return res
+      .status(400)
+      .json({ error: "too many paths in batch-read", code: "EINVAL" });
   }
 
   if (paths.length === 0) {
@@ -604,7 +612,9 @@ router.get("/tree", async (req, res) => {
     const entry = await bootstrapCache.getOrBuild(req._vaultId);
 
     if (!entry) {
-      return res.status(404).json({ error: "Vault not found" });
+      return res
+        .status(404)
+        .json({ error: "Vault not found", code: "ENOVAULT" });
     }
 
     res.setHeader("Cache-Control", "no-store");
@@ -648,7 +658,7 @@ router.get("/download", async (req, res) => {
     if (stat.isDirectory()) {
       return res
         .status(400)
-        .json({ error: "Use /download-zip for directories" });
+        .json({ error: "Use /download-zip for directories", code: "EISDIR" });
     }
 
     res.setHeader(
@@ -673,7 +683,9 @@ router.get("/download-zip", async (req, res) => {
     const stat = await fs.promises.stat(resolved);
 
     if (!stat.isDirectory()) {
-      return res.status(400).json({ error: "Not a directory" });
+      return res
+        .status(400)
+        .json({ error: "Not a directory", code: "ENOTDIR" });
     }
 
     // Persist buffered writes under the directory so archiver reads current bytes from disk.

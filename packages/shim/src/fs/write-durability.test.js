@@ -558,3 +558,75 @@ describe("silent by default", () => {
     expect(wd.getState()).toBe("clean");
   });
 });
+
+describe("permanent failure", () => {
+  function permanentError() {
+    const e = new Error("Path traversal rejected");
+
+    e.code = "EACCES";
+    e.status = 403;
+    e.permanent = true;
+
+    return e;
+  }
+
+  it("gives up a write whose first send failed permanently without retrying", async () => {
+    const failed = [];
+    wd.onFailure((p) => failed.push(p));
+
+    wd.trackWrite("a.md").failure("d", "utf-8", null, permanentError());
+
+    expect(failed).toEqual(["a.md"]);
+    expect(wd.listFailed()).toEqual(["a.md"]);
+    expect(wd.getState()).toBe("clean");
+
+    await vi.advanceTimersByTimeAsync(120_000);
+
+    expect(transport.writeFile).not.toHaveBeenCalled();
+  });
+
+  it("keeps the data of a permanent give-up for retryAll", async () => {
+    wd.trackWrite("a.md").failure("d", "utf-8", null, permanentError());
+    wd.retryAll();
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(transport.writeFile).toHaveBeenCalledWith("a.md", "d", "utf-8");
+    expect(wd.listFailed()).toEqual([]);
+  });
+
+  it("stops retrying once a retry fails permanently", async () => {
+    transport.writeFile.mockRejectedValue(permanentError());
+    const failed = [];
+    wd.onFailure((p) => failed.push(p));
+
+    wd.trackWrite("a.md").failure("d", "utf-8", null, new Error("offline"));
+    await vi.advanceTimersByTimeAsync(1000);
+
+    expect(transport.writeFile).toHaveBeenCalledTimes(1);
+    expect(failed).toEqual(["a.md"]);
+
+    await vi.advanceTimersByTimeAsync(120_000);
+
+    expect(transport.writeFile).toHaveBeenCalledTimes(1);
+  });
+
+  it("discards a silent write that failed permanently, without the notice", () => {
+    const errorLog = vi.spyOn(console, "error").mockImplementation(() => {});
+    const failed = [];
+    wd.onFailure((p) => failed.push(p));
+
+    wd.trackWrite("cfg.json", { silent: true }).failure(
+      "d",
+      "utf-8",
+      null,
+      permanentError(),
+    );
+
+    expect(failed).toEqual([]);
+    expect(wd.listFailed()).toEqual([]);
+    expect(wd._size()).toBe(0);
+    expect(errorLog).toHaveBeenCalled();
+
+    errorLog.mockRestore();
+  });
+});

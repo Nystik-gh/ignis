@@ -155,6 +155,29 @@ describe("appendFileSync", () => {
     expect(metadataCache.get("log.md")).toMatchObject({ mtime: 5 });
   });
 
+  it("an append rejected permanently gives up its write at once", async () => {
+    vi.useFakeTimers();
+
+    const { fsp, transport, metadataCache, contentCache } = makeAppendFs();
+    const rejected = new Error("Path traversal rejected");
+
+    rejected.code = "EACCES";
+    rejected.status = 403;
+    rejected.permanent = true;
+    metadataCache.set("log.md", { type: "file", size: 3, mtime: 1 });
+    contentCache.set("log.md", "old");
+    transport.appendFile.mockRejectedValueOnce(rejected);
+
+    await fsp.appendFile("log.md", "more");
+
+    expect(hasFailedWrite("log.md")).toBe(true);
+
+    await vi.advanceTimersByTimeAsync(120_000);
+
+    expect(transport.calls).toEqual([]);
+    expect(contentCache.get("log.md")).toBe("oldmore");
+  });
+
   it("a second append sends the write of a failed first append before its own", async () => {
     vi.useFakeTimers();
 

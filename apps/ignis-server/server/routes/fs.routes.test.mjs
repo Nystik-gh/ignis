@@ -689,3 +689,70 @@ describe("utimes route", () => {
     expect(tree["d"]).toMatchObject({ type: "directory" });
   });
 });
+
+describe("the fs routes' own 4xx answers carry a code", () => {
+  async function answer(res) {
+    return { status: res.status, code: (await res.json()).code };
+  }
+
+  it("an unknown vault is ENOVAULT", async () => {
+    const res = await fetch(u("stat?vault=missing&path=a.md"));
+
+    expect(await answer(res)).toEqual({ status: 404, code: "ENOVAULT" });
+  });
+
+  it("a missing path is EINVAL", async () => {
+    const res = await fetch(u(`stat?vault=${VAULT_ID}`));
+
+    expect(await answer(res)).toEqual({ status: 400, code: "EINVAL" });
+  });
+
+  it("a path outside the vault is EACCES", async () => {
+    const res = await writeFile("../escape.md", "x");
+
+    expect(await answer(res)).toEqual({ status: 403, code: "EACCES" });
+  });
+
+  it("rename without both paths is EINVAL, outside the vault is EACCES", async () => {
+    expect(await answer(await rename("a.md", ""))).toEqual({
+      status: 400,
+      code: "EINVAL",
+    });
+    expect(await answer(await rename("a.md", "../b.md"))).toEqual({
+      status: 403,
+      code: "EACCES",
+    });
+  });
+
+  it("copyFile without both paths is EINVAL, outside the vault is EACCES", async () => {
+    expect(await answer(await copyFile("", "b.md"))).toEqual({
+      status: 400,
+      code: "EINVAL",
+    });
+    expect(await answer(await copyFile("../a.md", "b.md"))).toEqual({
+      status: 403,
+      code: "EACCES",
+    });
+  });
+
+  it("an oversized batch-read is EINVAL", async () => {
+    const paths = Array.from({ length: 1001 }, (_, i) => `n${i}.md`);
+    const res = await postJson("batch-read", { paths });
+
+    expect(await answer(res)).toEqual({ status: 400, code: "EINVAL" });
+  });
+
+  it("downloading a folder is EISDIR, zipping a file is ENOTDIR", async () => {
+    fs.mkdirSync(abs("d"));
+    fs.writeFileSync(abs("f.md"), "x");
+
+    expect(await answer(await fetch(u(`download?${q("d")}`)))).toEqual({
+      status: 400,
+      code: "EISDIR",
+    });
+    expect(await answer(await fetch(u(`download-zip?${q("f.md")}`)))).toEqual({
+      status: 400,
+      code: "ENOTDIR",
+    });
+  });
+});

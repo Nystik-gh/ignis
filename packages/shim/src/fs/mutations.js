@@ -186,18 +186,23 @@ export function createMutations(metadataCache, contentCache, transport) {
     return appended;
   }
 
-  function retryAsWrite(path, content, meta, opts) {
-    trackWrite(path, opts).failure(content, undefined, (result) => {
-      if (metadataCache.get(path) !== meta) {
-        return;
-      }
+  function retryAsWrite(path, content, meta, opts, error) {
+    trackWrite(path, opts).failure(
+      content,
+      undefined,
+      (result) => {
+        if (metadataCache.get(path) !== meta) {
+          return;
+        }
 
-      metadataCache.set(path, {
-        ...meta,
-        size: result.size || meta.size,
-        mtime: result.mtime,
-      });
-    });
+        metadataCache.set(path, {
+          ...meta,
+          size: result.size || meta.size,
+          mtime: result.mtime,
+        });
+      },
+      error,
+    );
   }
 
   function commitAppend(path, data, request, opts) {
@@ -220,7 +225,7 @@ export function createMutations(metadataCache, contentCache, transport) {
               throw e;
             }
 
-            retryAsWrite(path, appended, stamp.meta, opts);
+            retryAsWrite(path, appended, stamp.meta, opts, e);
           },
         ),
     );

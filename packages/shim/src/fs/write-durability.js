@@ -1,4 +1,4 @@
-// Always-on write durability: a failed writeFile is retried with backoff.
+// Always-on write durability: a failed writeFile is retried with backoff, or given up at once when the server rejects it.
 // A non-silent write drives the status-bar dirty signal and fires a failure event on give-up; a silent write retries without surfacing.
 
 import { markSentOp } from "./echo-guard.js";
@@ -222,7 +222,7 @@ function attempt(path, gen, schedule = serialize) {
       discard(path);
       recompute();
     },
-    () => {
+    (e) => {
       const current = entries.get(path);
 
       if (!current || current.gen !== gen) {
@@ -231,25 +231,28 @@ function attempt(path, gen, schedule = serialize) {
 
       current.attempts += 1;
 
-      if (current.attempts <= MAX_ATTEMPTS) {
+      if (current.attempts <= MAX_ATTEMPTS && !e?.permanent) {
         scheduleRetry(path, gen);
         return;
       }
 
-      if (current.silent) {
-        // Silent writes give up without user surfacing; the optimistic cache staleness clears on reload.
-        console.error("[shim:fs] write durability gave up (silent):", path);
-        discard(path);
-        recompute();
-      } else {
-        current.status = "failed";
-        recompute();
-        emitFailure(path);
-      }
+      giveUp(path, current);
     },
   );
 
   return writeAttempt;
+}
+
+function giveUp(path, entry) {
+  if (entry.silent) {
+    console.error("[shim:fs] write durability gave up (silent):", path);
+    discard(path);
+    recompute();
+  } else {
+    entry.status = "failed";
+    recompute();
+    emitFailure(path);
+  }
 }
 
 // Track one write; the caller reports the outcome on the returned handle.
@@ -304,7 +307,7 @@ export function trackWrite(path, opts) {
       }
     },
 
-    failure(data, encoding, onResult) {
+    failure(data, encoding, onResult, error) {
       const current = entries.get(path);
 
       if (!current || current.gen !== gen) {
@@ -318,6 +321,11 @@ export function trackWrite(path, opts) {
       current.status = "retrying";
       current.overThreshold = true;
       current.attempts = 1;
+
+      if (error?.permanent) {
+        giveUp(path, current);
+        return;
+      }
 
       scheduleRetry(path, gen);
       recompute();

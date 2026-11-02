@@ -25,6 +25,7 @@ export const processShim = {
     chrome: "150.0.7871.250",
   },
   env: {},
+  execPath: "/opt/Obsidian/obsidian",
   cwd: () => "/",
   nextTick: (fn, ...args) => setTimeout(() => fn(...args), 0),
   hrtime,

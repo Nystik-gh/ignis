@@ -58,4 +58,22 @@ describe("window.require", () => {
   it("resolves tty to a shim that reports no terminal", () => {
     expect(window.require("tty").isatty(1)).toBe(false);
   });
+
+  it("returns window.require from module.createRequire", () => {
+    const { createRequire } = window.require("node:module");
+
+    expect(createRequire("/vault/plugin/main.js")).toBe(window.require);
+  });
+
+  it("lists the registry's modules in module.builtinModules", () => {
+    const { builtinModules } = window.require("module");
+
+    expect(builtinModules).toContain("fs");
+    expect(builtinModules).toContain("module");
+    expect(builtinModules).toContain("worker_threads");
+  });
+
+  it("resolves worker_threads to a shim that reports the main thread", () => {
+    expect(window.require("node:worker_threads").isMainThread).toBe(true);
+  });
 });

@@ -58,6 +58,12 @@ function toUint8Array(buf) {
   return new Uint8Array(buf);
 }
 
+function notAvailable(name) {
+  return function () {
+    throw new Error(`zlib.${name}() is not available in the web version.`);
+  };
+}
+
 function wrapAsync(syncFn) {
   return function (buf, optionsOrCb, cb) {
     if (typeof optionsOrCb === "function") {
@@ -109,6 +115,9 @@ export function unzipSync(buf, options) {
   return pako.ungzip(toUint8Array(buf), options);
 }
 
+export const brotliCompressSync = notAvailable("brotliCompressSync");
+export const brotliDecompressSync = notAvailable("brotliDecompressSync");
+
 // --- Async functions (callback style) ---
 
 export const deflate = wrapAsync(deflateSync);
@@ -118,6 +127,8 @@ export const inflateRaw = wrapAsync(inflateRawSync);
 export const gzip = wrapAsync(gzipSync);
 export const gunzip = wrapAsync(gunzipSync);
 export const unzip = wrapAsync(unzipSync);
+export const brotliCompress = wrapAsync(notAvailable("brotliCompress"));
+export const brotliDecompress = wrapAsync(notAvailable("brotliDecompress"));
 
 // --- Streaming stubs (not yet implemented) ---
 
@@ -136,3 +147,5 @@ export const createInflateRaw = notImplemented("createInflateRaw");
 export const createGzip = notImplemented("createGzip");
 export const createGunzip = notImplemented("createGunzip");
 export const createUnzip = notImplemented("createUnzip");
+export const createBrotliCompress = notAvailable("createBrotliCompress");
+export const createBrotliDecompress = notAvailable("createBrotliDecompress");

@@ -6,6 +6,7 @@ import { MetadataCache } from "./metadata-cache.js";
 import { ContentCache } from "./content-cache.js";
 import { _reset as resetCoalescer } from "./write-coalescer.js";
 import { _reset as resetDurability } from "./write-durability.js";
+import { inputCacheClear, inputCacheSet } from "./input-cache.js";
 
 function makeDeps() {
   const store = new Map();
@@ -50,6 +51,7 @@ function makeDeps() {
   const transport = {
     mkdir: vi.fn(async () => {}),
     rmdir: vi.fn(async () => {}),
+    rm: vi.fn(async () => {}),
     stat: vi.fn(async () => ({ type: "file", size: 1 })),
     readFile: vi.fn(async () => {
       throw new Error("transport.readFile should not be called");
@@ -103,6 +105,40 @@ describe("promises directory mutations honor path resolvers", () => {
     expect(deps.store.has("physical/dir")).toBe(false);
     expect(deps.transport.rmdir).toHaveBeenCalledWith("physical/dir");
     expect(isRecentSentOp("physical/dir")).toBe(true);
+  });
+});
+
+describe("promises rmdir", () => {
+  it("removes the tree when recursive", async () => {
+    const deps = makeDeps();
+    const fs = createFsPromises(
+      deps.metadataCache,
+      deps.contentCache,
+      deps.transport,
+    );
+    deps.store.set("dir", { type: "directory" });
+    deps.store.set("dir/a.md", { type: "file" });
+
+    await fs.rmdir("dir", { recursive: true });
+
+    expect(deps.transport.rm).toHaveBeenCalledWith("dir", true);
+    expect(deps.transport.rmdir).not.toHaveBeenCalled();
+  });
+
+  it("rejects ENOTDIR for a file and keeps it", async () => {
+    const deps = makeDeps();
+    const fs = createFsPromises(
+      deps.metadataCache,
+      deps.contentCache,
+      deps.transport,
+    );
+    deps.store.set("a.md", { type: "file" });
+
+    await expect(fs.rmdir("a.md", { recursive: true })).rejects.toMatchObject({
+      code: "ENOTDIR",
+    });
+    expect(deps.store.has("a.md")).toBe(true);
+    expect(deps.transport.rm).not.toHaveBeenCalled();
   });
 });
 
@@ -382,5 +418,38 @@ describe("promises stat existence", () => {
     expect(stat.isFile()).toBe(true);
     expect(deps.transport.stat).toHaveBeenCalledWith("physical.md");
     expect(deps.store.has("physical.md")).toBe(true);
+  });
+});
+
+describe("promises stat and access for a file picked in a file dialog", () => {
+  afterEach(() => inputCacheClear());
+
+  it("stat answers from the input cache", async () => {
+    const deps = makeDeps();
+    const fs = createFsPromises(
+      deps.metadataCache,
+      deps.contentCache,
+      deps.transport,
+    );
+    inputCacheSet(".obsidian/imports/picked.csv", new Uint8Array(5));
+
+    const stat = await fs.stat(".obsidian/imports/picked.csv");
+
+    expect(stat.size).toBe(5);
+    expect(stat.isFile()).toBe(true);
+  });
+
+  it("access answers from the input cache", async () => {
+    const deps = makeDeps();
+    const fs = createFsPromises(
+      deps.metadataCache,
+      deps.contentCache,
+      deps.transport,
+    );
+    inputCacheSet(".obsidian/imports/picked.csv", new Uint8Array(5));
+
+    await expect(
+      fs.access(".obsidian/imports/picked.csv"),
+    ).resolves.toBeUndefined();
   });
 });

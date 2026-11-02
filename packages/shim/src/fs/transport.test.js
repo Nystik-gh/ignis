@@ -264,22 +264,41 @@ describe("transport error status", () => {
 });
 
 describe("transport readFileSync", () => {
+  function decodeBody(body, mimeOverride) {
+    if (mimeOverride === "text/plain; charset=x-user-defined") {
+      return String.fromCharCode(
+        ...Array.from(body, (b) => (b < 0x80 ? b : 0xf700 + b)),
+      );
+    }
+
+    return new TextDecoder().decode(body);
+  }
+
   function installXhr({
     status = 200,
     contentType = "text/plain; charset=utf-8",
     responseText = "",
     responseURL,
+    body,
   }) {
     globalThis.XMLHttpRequest = class {
+      mimeOverride = null;
+
       open(method, url) {
         this.url = url;
+      }
+
+      overrideMimeType(type) {
+        this.mimeOverride = type;
       }
 
       setRequestHeader() {}
 
       send() {
         this.status = status;
-        this.responseText = responseText;
+        this.responseText = body
+          ? decodeBody(body, this.mimeOverride)
+          : responseText;
         this.responseURL = responseURL ?? this.url;
       }
 
@@ -289,10 +308,18 @@ describe("transport readFileSync", () => {
     };
   }
 
-  it("returns the text the route sent", () => {
-    installXhr({ responseText: "hello" });
+  it("returns a utf8 read as decoded text", () => {
+    installXhr({ body: new TextEncoder().encode("café 😀") });
 
-    expect(transport.readFileSync("a.md", "utf8")).toBe("hello");
+    expect(transport.readFileSync("a.md", "utf8")).toBe("café 😀");
+  });
+
+  it("returns every byte of a binary read unchanged", () => {
+    const body = Uint8Array.from({ length: 256 }, (_, i) => i);
+
+    installXhr({ contentType: "application/octet-stream", body });
+
+    expect(transport.readFileSync("a.bin")).toEqual(body);
   });
 
   it("refuses a redirected response", () => {

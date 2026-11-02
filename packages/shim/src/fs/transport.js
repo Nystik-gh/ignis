@@ -154,7 +154,12 @@ async function requestJson(method, endpoint, params = {}) {
   return res.json();
 }
 
-function requestSync(method, endpoint, params = {}, { accept }) {
+function requestSync(
+  method,
+  endpoint,
+  params = {},
+  { accept, binaryResponse },
+) {
   const url = new URL(API_BASE + endpoint, window.location.origin);
 
   if (method === "GET" || method === "DELETE") {
@@ -169,6 +174,10 @@ function requestSync(method, endpoint, params = {}, { accept }) {
 
   const xhr = new XMLHttpRequest();
   xhr.open(method, url.toString(), false); // synchronous
+
+  if (binaryResponse) {
+    xhr.overrideMimeType("text/plain; charset=x-user-defined");
+  }
 
   if (method !== "GET" && method !== "DELETE") {
     xhr.setRequestHeader("Content-Type", "application/json");
@@ -305,14 +314,15 @@ export const transport = {
   },
 
   readFileSync(path, encoding) {
+    const wantText = encoding === "utf8" || encoding === "utf-8";
     const xhr = requestSync(
       "GET",
       "/readFile",
       { path: normPath(path), encoding: encoding || "" },
-      { accept: readType(encoding) },
+      { accept: readType(encoding), binaryResponse: !wantText },
     );
 
-    if (encoding === "utf8" || encoding === "utf-8") {
+    if (wantText) {
       return xhr.responseText;
     }
 
@@ -320,7 +330,7 @@ export const transport = {
     const bytes = new Uint8Array(binary.length);
 
     for (let i = 0; i < binary.length; i++) {
-      bytes[i] = binary.charCodeAt(i);
+      bytes[i] = binary.charCodeAt(i) & 0xff;
     }
 
     return bytes;

@@ -17,64 +17,64 @@ import {
   _reset as resetDurability,
 } from "./write-durability.js";
 
-describe("appendFileSync", () => {
-  const nextTask = () => new Promise((r) => setTimeout(r, 0));
+const nextTask = () => new Promise((r) => setTimeout(r, 0));
 
-  function deferred() {
-    let resolve;
-    const promise = new Promise((r) => {
-      resolve = r;
-    });
-
-    return { promise, resolve };
-  }
-
-  function makeAppendFs() {
-    const calls = [];
-    const transport = {
-      calls,
-      writeFile: vi.fn(async (path, data) => {
-        calls.push(`writeFile ${path} ${data}`);
-
-        return { mtime: 5, size: 1 };
-      }),
-      appendFile: vi.fn(async (path, data) => {
-        calls.push(`appendFile ${path} ${data}`);
-      }),
-      rename: vi.fn(async (from, to) => {
-        calls.push(`rename ${from} ${to}`);
-      }),
-      stat: vi.fn(async () => ({ type: "file", size: 9, mtime: 7 })),
-      readFileSync: vi.fn(() => {
-        throw new Error("transport.readFileSync should not be called");
-      }),
-    };
-    const metadataCache = new MetadataCache();
-    const contentCache = new ContentCache();
-
-    contentCache.retainWhile(
-      (path) => hasUnconfirmedWrite(path) || hasFailedWrite(path),
-    );
-    contentCache.refuseFillWhile(hasUnconfirmedWrite);
-    initWriteCoalescer(transport);
-    initWriteDurability(transport, enqueue);
-
-    return {
-      fs: createFsSync(metadataCache, contentCache, transport),
-      fsp: createFsPromises(metadataCache, contentCache, transport),
-      transport,
-      metadataCache,
-      contentCache,
-    };
-  }
-
-  afterEach(() => {
-    resetCoalescer();
-    resetDurability();
-    vi.useRealTimers();
-    vi.restoreAllMocks();
+function deferred() {
+  let resolve;
+  const promise = new Promise((r) => {
+    resolve = r;
   });
 
+  return { promise, resolve };
+}
+
+function makeAppendFs() {
+  const calls = [];
+  const transport = {
+    calls,
+    writeFile: vi.fn(async (path, data) => {
+      calls.push(`writeFile ${path} ${data}`);
+
+      return { mtime: 5, size: 1 };
+    }),
+    appendFile: vi.fn(async (path, data) => {
+      calls.push(`appendFile ${path} ${data}`);
+    }),
+    rename: vi.fn(async (from, to) => {
+      calls.push(`rename ${from} ${to}`);
+    }),
+    stat: vi.fn(async () => ({ type: "file", size: 9, mtime: 7 })),
+    readFileSync: vi.fn(() => {
+      throw new Error("transport.readFileSync should not be called");
+    }),
+  };
+  const metadataCache = new MetadataCache();
+  const contentCache = new ContentCache();
+
+  contentCache.retainWhile(
+    (path) => hasUnconfirmedWrite(path) || hasFailedWrite(path),
+  );
+  contentCache.refuseFillWhile(hasUnconfirmedWrite);
+  initWriteCoalescer(transport);
+  initWriteDurability(transport, enqueue);
+
+  return {
+    fs: createFsSync(metadataCache, contentCache, transport),
+    fsp: createFsPromises(metadataCache, contentCache, transport),
+    transport,
+    metadataCache,
+    contentCache,
+  };
+}
+
+afterEach(() => {
+  resetCoalescer();
+  resetDurability();
+  vi.useRealTimers();
+  vi.restoreAllMocks();
+});
+
+describe("appendFileSync", () => {
   it("a read right after writeFileSync and appendFileSync returns both", () => {
     const { fs, transport } = makeAppendFs();
 
@@ -387,5 +387,62 @@ describe("appendFileSync", () => {
     await vi.advanceTimersByTimeAsync(5000);
 
     expect(transport.writeFile.mock.calls.at(-1)[1]).toBe("Wde");
+  });
+});
+
+describe("writeFile with an append flag", () => {
+  it("writeFileSync with the append flag appends", async () => {
+    const { fs, transport } = makeAppendFs();
+
+    fs.writeFileSync("log.md", "first");
+    fs.writeFileSync("log.md", " second", { flag: "a" });
+
+    expect(fs.readFileSync("log.md", "utf8")).toBe("first second");
+
+    await nextTask();
+
+    expect(transport.appendFile).toHaveBeenCalledWith("log.md", " second");
+  });
+
+  it("promises writeFile with the append flag appends", async () => {
+    const { fs, fsp, transport } = makeAppendFs();
+
+    await fsp.writeFile("log.md", "first");
+    const appending = fsp.writeFile("log.md", " second", { flag: "a+" });
+
+    expect(fs.readFileSync("log.md", "utf8")).toBe("first second");
+
+    await appending;
+
+    expect(transport.appendFile).toHaveBeenCalledWith("log.md", " second");
+  });
+});
+
+describe("content sizes in UTF-8 bytes", () => {
+  it("sizes appended text in UTF-8 bytes", () => {
+    const { fs, metadataCache } = makeAppendFs();
+
+    fs.writeFileSync("note.md", "a");
+    fs.appendFileSync("note.md", "é");
+
+    expect(metadataCache.get("note.md").size).toBe(3);
+  });
+
+  it("writeFileSync sizes text in UTF-8 bytes", () => {
+    const { fs, metadataCache } = makeAppendFs();
+
+    fs.writeFileSync("note.md", "é😀");
+
+    expect(metadataCache.get("note.md").size).toBe(6);
+  });
+
+  it("promises writeFile sizes text in UTF-8 bytes", async () => {
+    const { fsp, metadataCache } = makeAppendFs();
+
+    const writing = fsp.writeFile("note.md", "é😀");
+
+    expect(metadataCache.get("note.md").size).toBe(6);
+
+    await writing;
   });
 });

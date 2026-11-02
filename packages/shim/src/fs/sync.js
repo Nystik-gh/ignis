@@ -15,11 +15,26 @@ import {
 } from "./write-coalescer.js";
 import { createUtimes } from "./utimes.js";
 import { createMutations } from "./mutations.js";
+import { utf8ByteLength } from "../util/utf8.js";
 
 export function createFsSync(metadataCache, contentCache, transport) {
   const commitUtimes = createUtimes(metadataCache, transport);
   const { commitAppend, commitCopy, commitRemove, commitRename } =
     createMutations(metadataCache, contentCache, transport);
+
+  function appendFileSync(path, data) {
+    const resolved = resolvePath(path);
+
+    commitAppend(resolved, data, () => transport.appendFile(resolved, data), {
+      silent: true,
+    }).catch((e) => {
+      console.error(
+        "[shim:fs] appendFileSync background append failed:",
+        resolved,
+        e,
+      );
+    });
+  }
 
   return {
     existsSync(path) {
@@ -164,11 +179,16 @@ export function createFsSync(metadataCache, contentCache, transport) {
       return result;
     },
 
-    writeFileSync(path, data, encoding) {
-      if (typeof encoding === "object") {
-        encoding = encoding?.encoding;
+    writeFileSync(path, data, options) {
+      const appendsToFile = options?.flag === "a" || options?.flag === "a+";
+
+      if (appendsToFile) {
+        appendFileSync(path, data);
+        return;
       }
 
+      const encoding =
+        typeof options === "object" ? options?.encoding : options;
       const resolved = resolvePath(path);
       const transformed = applyWriteTransform(resolved, data);
 
@@ -176,7 +196,7 @@ export function createFsSync(metadataCache, contentCache, transport) {
 
       const size =
         typeof transformed === "string"
-          ? transformed.length
+          ? utf8ByteLength(transformed)
           : transformed.byteLength || 0;
 
       const written = {
@@ -260,10 +280,20 @@ export function createFsSync(metadataCache, contentCache, transport) {
       });
     },
 
-    rmdirSync(path) {
+    rmdirSync(path, options) {
+      const recursive = !!options?.recursive;
       const resolved = resolvePath(path);
 
-      commitRemove(resolved, () => transport.rmdir(resolved)).catch((e) => {
+      if (metadataCache.get(resolved)?.type === "file") {
+        const e = new Error(`ENOTDIR: not a directory, rmdir '${path}'`);
+
+        e.code = "ENOTDIR";
+        throw e;
+      }
+
+      commitRemove(resolved, () =>
+        recursive ? transport.rm(resolved, true) : transport.rmdir(resolved),
+      ).catch((e) => {
         console.error(
           "[shim:fs] rmdirSync background remove failed:",
           resolved,
@@ -319,19 +349,7 @@ export function createFsSync(metadataCache, contentCache, transport) {
       });
     },
 
-    appendFileSync(path, data) {
-      const resolved = resolvePath(path);
-
-      commitAppend(resolved, data, () => transport.appendFile(resolved, data), {
-        silent: true,
-      }).catch((e) => {
-        console.error(
-          "[shim:fs] appendFileSync background append failed:",
-          resolved,
-          e,
-        );
-      });
-    },
+    appendFileSync,
 
     utimesSync(path, atime, mtime) {
       commitUtimes(path, atime, mtime);

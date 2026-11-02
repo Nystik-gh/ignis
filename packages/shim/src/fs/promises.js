@@ -23,6 +23,7 @@ import { realpathSync } from "./realpath.js";
 import { initWriteDurability } from "./write-durability.js";
 import { createUtimes } from "./utimes.js";
 import { createMutations } from "./mutations.js";
+import { utf8ByteLength } from "../util/utf8.js";
 import { createReadAhead } from "./read-ahead.js";
 import { isTextPath } from "./indexer-prefetch.js";
 
@@ -35,8 +36,30 @@ export function createFsPromises(metadataCache, contentCache, transport) {
     createMutations(metadataCache, contentCache, transport);
   const readAhead = createReadAhead(metadataCache, contentCache);
 
+  async function appendFile(path, data, encoding) {
+    const resolved = resolvePath(path);
+
+    await commitAppend(resolved, data, () =>
+      transport.appendFile(resolved, data),
+    );
+  }
+
   return {
     async stat(path) {
+      if (isInputCachePath(path) && inputCacheGet(path) !== null) {
+        const data = inputCacheGet(path);
+        const size = data ? data.length || data.byteLength || 0 : 0;
+
+        return {
+          size,
+          mtime: new Date(),
+          ctime: new Date(),
+          isFile: () => true,
+          isDirectory: () => false,
+          isSymbolicLink: () => false,
+        };
+      }
+
       const { resolved, redirected } = resolvePathInfo(path);
       const cached = metadataCache.toStat(resolved);
 
@@ -195,11 +218,16 @@ export function createFsPromises(metadataCache, contentCache, transport) {
       return result;
     },
 
-    async writeFile(path, data, encoding) {
-      if (typeof encoding === "object") {
-        encoding = encoding?.encoding;
+    async writeFile(path, data, options) {
+      const appendsToFile = options?.flag === "a" || options?.flag === "a+";
+
+      if (appendsToFile) {
+        await appendFile(path, data);
+        return;
       }
 
+      const encoding =
+        typeof options === "object" ? options?.encoding : options;
       const resolved = resolvePath(path);
       const transformed = applyWriteTransform(resolved, data);
 
@@ -207,7 +235,7 @@ export function createFsPromises(metadataCache, contentCache, transport) {
 
       const size =
         typeof transformed === "string"
-          ? transformed.length
+          ? utf8ByteLength(transformed)
           : transformed.byteLength || 0;
 
       const written = {
@@ -252,13 +280,7 @@ export function createFsPromises(metadataCache, contentCache, transport) {
       }
     },
 
-    async appendFile(path, data, encoding) {
-      const resolved = resolvePath(path);
-
-      await commitAppend(resolved, data, () =>
-        transport.appendFile(resolved, data),
-      );
-    },
+    appendFile,
 
     async unlink(path) {
       const resolved = resolvePath(path);
@@ -291,10 +313,20 @@ export function createFsPromises(metadataCache, contentCache, transport) {
       });
     },
 
-    async rmdir(path) {
+    async rmdir(path, options) {
+      const recursive = !!options?.recursive;
       const resolved = resolvePath(path);
 
-      await commitRemove(resolved, () => transport.rmdir(resolved));
+      if (metadataCache.get(resolved)?.type === "file") {
+        const e = new Error(`ENOTDIR: not a directory, rmdir '${path}'`);
+
+        e.code = "ENOTDIR";
+        throw e;
+      }
+
+      await commitRemove(resolved, () =>
+        recursive ? transport.rm(resolved, true) : transport.rmdir(resolved),
+      );
     },
 
     async rm(path, options) {
@@ -316,6 +348,10 @@ export function createFsPromises(metadataCache, contentCache, transport) {
     },
 
     async access(path) {
+      if (isInputCachePath(path) && inputCacheGet(path) !== null) {
+        return;
+      }
+
       const resolved = resolvePath(path);
 
       if (metadataCache.has(resolved)) {

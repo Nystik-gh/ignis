@@ -2,6 +2,7 @@ import { markSentOp } from "./echo-guard.js";
 import { enqueueMutation } from "./write-coalescer.js";
 import { dropRetries, retryNow, trackWrite } from "./write-durability.js";
 import { isPathInSubtree } from "../util/path.js";
+import { utf8ByteLength } from "../util/utf8.js";
 
 export function createMutations(metadataCache, contentCache, transport) {
   function entriesUnder(path) {
@@ -174,10 +175,14 @@ export function createMutations(metadataCache, contentCache, transport) {
     }
 
     const appended = meta ? joinContent(content, data) : data;
+    const size =
+      typeof appended === "string"
+        ? utf8ByteLength(appended)
+        : appended.byteLength;
 
     metadataCache.set(path, {
       type: "file",
-      size: appended.length,
+      size,
       mtime: Date.now(),
       ctime: meta?.ctime || Date.now(),
     });

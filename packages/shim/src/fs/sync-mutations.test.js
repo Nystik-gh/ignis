@@ -119,6 +119,38 @@ describe("sync fs mutations", () => {
     expect(deps.transport.rm).toHaveBeenCalled();
   });
 
+  it("rmdirSync with recursive removes the tree", async () => {
+    const deps = makeDeps();
+    const fs = createFsSync(
+      deps.metadataCache,
+      deps.contentCache,
+      deps.transport,
+    );
+    deps.store.set("dir", { type: "directory" });
+    deps.store.set("dir/a.md", { type: "file" });
+
+    fs.rmdirSync("dir", { recursive: true });
+
+    await new Promise((r) => setTimeout(r, 0));
+
+    expect(deps.transport.rm).toHaveBeenCalledWith("dir", true);
+    expect(deps.transport.rmdir).not.toHaveBeenCalled();
+  });
+
+  it("rmdirSync on a file throws ENOTDIR and keeps the file", () => {
+    const deps = makeDeps();
+    const fs = createFsSync(
+      deps.metadataCache,
+      deps.contentCache,
+      deps.transport,
+    );
+    deps.store.set("a.md", { type: "file" });
+
+    expect(() => fs.rmdirSync("a.md", { recursive: true })).toThrow("ENOTDIR");
+    expect(deps.store.has("a.md")).toBe(true);
+    expect(deps.transport.rm).not.toHaveBeenCalled();
+  });
+
   it("renameSync moves cache metadata and fires the transport", async () => {
     const deps = makeDeps();
     const fs = createFsSync(

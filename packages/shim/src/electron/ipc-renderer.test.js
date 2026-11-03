@@ -61,3 +61,27 @@ describe("the request-url log line", () => {
     expect(JSON.stringify(log.mock.calls)).not.toContain("SECRET");
   });
 });
+
+describe("the policy answer", () => {
+  it("carries the same values flat and under policy", () => {
+    vi.spyOn(console, "log").mockImplementation(() => {});
+
+    const answer = ipcRenderer.sendSync("policy");
+    const sharedKeys = ["plugins", "themes", "snippets", "devTools", "insider"];
+
+    for (const key of sharedKeys) {
+      expect(answer[key]).toBe(true);
+      expect(answer.policy[key]).toBe(answer[key]);
+    }
+  });
+});
+
+describe("the plugin-script-root channel", () => {
+  it("answers null without the unhandled-channel warning", () => {
+    vi.spyOn(console, "log").mockImplementation(() => {});
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    expect(ipcRenderer.sendSync("plugin-script-root")).toBeNull();
+    expect(warn).not.toHaveBeenCalled();
+  });
+});

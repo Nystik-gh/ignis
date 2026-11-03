@@ -62,31 +62,53 @@ function isCallOn(node, method, firstArg) {
 }
 
 function extractTermsFromRenderer(source) {
-  let terms = null;
+  const comparedOperands = [];
+  const stringDeclarations = new Map();
 
   walk(parse(source), (node) => {
     if (
-      terms !== null ||
+      node.type === "VariableDeclarator" &&
+      node.id.type === "Identifier" &&
+      isStringLiteral(node.init)
+    ) {
+      const declaredValues = stringDeclarations.get(node.id.name) || [];
+      declaredValues.push(node.init.value);
+      stringDeclarations.set(node.id.name, declaredValues);
+    }
+
+    if (
       node.type !== "BinaryExpression" ||
       !EQUALITY_OPERATORS.has(node.operator)
     ) {
       return;
     }
 
-    if (
-      isStringLiteral(node.left) &&
-      isCallOn(node.right, "sendSync", "terms")
-    ) {
-      terms = node.left.value;
-    } else if (
-      isStringLiteral(node.right) &&
-      isCallOn(node.left, "sendSync", "terms")
-    ) {
-      terms = node.right.value;
+    if (isCallOn(node.right, "sendSync", "terms")) {
+      comparedOperands.push(node.left);
+    } else if (isCallOn(node.left, "sendSync", "terms")) {
+      comparedOperands.push(node.right);
     }
   });
 
-  return terms;
+  const comparedLiteral = comparedOperands.find(isStringLiteral);
+
+  if (comparedLiteral) {
+    return comparedLiteral.value;
+  }
+
+  for (const operand of comparedOperands) {
+    if (operand.type !== "Identifier") {
+      continue;
+    }
+
+    const declaredValues = stringDeclarations.get(operand.name) || [];
+
+    if (declaredValues.length === 1) {
+      return declaredValues[0];
+    }
+  }
+
+  return null;
 }
 
 function extractTermsFromMain(source) {

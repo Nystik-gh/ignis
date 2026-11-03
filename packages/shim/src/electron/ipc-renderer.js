@@ -13,6 +13,7 @@ const syncHandlers = {
   cli: () => false,
   "set-language": () => null,
 
+  // temporarily shaped this way to support both 1.14 and 1.15. Will be changed on 1.15 pin.
   policy: () => ({
     plugins: true,
     themes: true,
@@ -22,7 +23,22 @@ const syncHandlers = {
     webViewer: true,
     devTools: true,
     insider: true,
+    policy: {
+      plugins: true,
+      corePlugins: {},
+      communityPlugins: [],
+      privatePlugins: [],
+      themes: true,
+      snippets: true,
+      devTools: true,
+      insider: true,
+    },
+    status: "not managed",
+    source: "",
+    diagnostics: [],
   }),
+
+  "plugin-script-root": () => null,
 
   terms: () => {
     if (!window.__obsidianTerms) {

@@ -2,6 +2,7 @@
 
 const DESKTOP_RUNTIMES = {
   "1.14.4": { chrome: "150.0.7871.250", electron: "43.7.5" },
+  "1.15.0": { chrome: "150.0.7871.250", electron: "43.8.4" },
 };
 
 const FALLBACK_OS_SEGMENT = "Windows NT 10.0; Win64; x64";

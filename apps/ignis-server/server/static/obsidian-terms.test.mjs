@@ -66,6 +66,40 @@ if (ipcRenderer.sendSync("terms") !== "${MOCK_TERMS}") {
   it("ignores comparisons on other channels", () => {
     expect(extractTermsFromRenderer(RENDERER_WITHOUT_TERMS)).toBeNull();
   });
+
+  it("resolves a compared identifier through its one string declaration", () => {
+    const source = `
+(function () {
+  function gate() {
+    if (ipcRenderer.sendSync("terms") !== TERMS) {
+      window.close();
+    }
+  }
+
+  var TERMS = "${MOCK_TERMS}";
+})();
+`;
+
+    expect(extractTermsFromRenderer(source)).toBe(MOCK_TERMS);
+  });
+
+  it("does not resolve a compared identifier declared as a string twice", () => {
+    const source = `
+function gate() {
+  var TERMS = "${MOCK_TERMS}";
+
+  if (ipcRenderer.sendSync("terms") !== TERMS) {
+    window.close();
+  }
+}
+
+function other() {
+  var TERMS = "something else";
+}
+`;
+
+    expect(extractTermsFromRenderer(source)).toBeNull();
+  });
 });
 
 describe("extractTermsFromMain", () => {

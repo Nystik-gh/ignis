@@ -91,7 +91,11 @@ export const vaultService = {
         window.__vaultConfig.id = newName;
       }
 
-      history.replaceState(null, "", "/?vault=" + encodeURIComponent(newName));
+      history.replaceState(
+        history.state,
+        "",
+        "/?vault=" + encodeURIComponent(newName),
+      );
     }
 
     return this.listVaults();

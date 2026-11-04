@@ -2,6 +2,23 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.9.0] - Katla (2026-11-04)
+
+### Added
+
+- Saving Ignis to the home screen or desktop as a standalone window.
+- Browser, mouse, and Android back buttons go back through note history.
+
+### Changed
+
+- Compatibility fixes for Obsidian 1.15.
+
+### Fixed
+
+- Restrictive umask no longer interferes with first startup.
+- Renames no longer fail when applied to a file currently being saved.
+- Removing a folder removes its contents from the metadata cache.
+
 ## [0.8.18] - Karm (2026-10-17)
 
 ### Fixed

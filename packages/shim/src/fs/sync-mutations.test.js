@@ -13,6 +13,18 @@ function makeDeps() {
     get: (p) => (store.has(p) ? store.get(p) : null),
     set: (p, m) => store.set(p, m),
     delete: (p) => store.delete(p),
+    keys: () => [...store.keys()],
+    deleteSubtree: (p) => {
+      const removed = [...store.keys()].filter(
+        (key) => key === p || key.startsWith(p + "/"),
+      );
+
+      for (const key of removed) {
+        store.delete(key);
+      }
+
+      return removed;
+    },
     rename: (a, b) => {
       if (store.has(a)) {
         store.set(b, store.get(a));
@@ -34,7 +46,9 @@ function makeDeps() {
 
   const contentCache = {
     get: () => null,
+    pathUpdates: () => 0,
     set: vi.fn(),
+    setFromServer: vi.fn(),
     delete: vi.fn(),
     invalidate: vi.fn(),
   };
@@ -69,7 +83,7 @@ describe("sync fs mutations", () => {
     expect(fs.lstatSync("dir").isDirectory()).toBe(true);
   });
 
-  it("mkdirSync updates the cache and fires the transport", () => {
+  it("mkdirSync updates the cache and fires the transport", async () => {
     const deps = makeDeps();
     const fs = createFsSync(
       deps.metadataCache,
@@ -80,10 +94,13 @@ describe("sync fs mutations", () => {
     fs.mkdirSync("newdir", { recursive: true });
 
     expect(deps.store.get("newdir")).toEqual({ type: "directory" });
+
+    await new Promise((r) => setTimeout(r, 0));
+
     expect(deps.transport.mkdir).toHaveBeenCalledWith("newdir", true);
   });
 
-  it("rmSync deletes from the cache and fires the transport", () => {
+  it("rmSync deletes from the cache and fires the transport", async () => {
     const deps = makeDeps();
     const fs = createFsSync(
       deps.metadataCache,
@@ -96,10 +113,45 @@ describe("sync fs mutations", () => {
     fs.rmSync("gone.md", { recursive: true });
 
     expect(deps.store.has(key)).toBe(false);
+
+    await new Promise((r) => setTimeout(r, 0));
+
     expect(deps.transport.rm).toHaveBeenCalled();
   });
 
-  it("renameSync moves cache metadata and fires the transport", () => {
+  it("rmdirSync with recursive removes the tree", async () => {
+    const deps = makeDeps();
+    const fs = createFsSync(
+      deps.metadataCache,
+      deps.contentCache,
+      deps.transport,
+    );
+    deps.store.set("dir", { type: "directory" });
+    deps.store.set("dir/a.md", { type: "file" });
+
+    fs.rmdirSync("dir", { recursive: true });
+
+    await new Promise((r) => setTimeout(r, 0));
+
+    expect(deps.transport.rm).toHaveBeenCalledWith("dir", true);
+    expect(deps.transport.rmdir).not.toHaveBeenCalled();
+  });
+
+  it("rmdirSync on a file throws ENOTDIR and keeps the file", () => {
+    const deps = makeDeps();
+    const fs = createFsSync(
+      deps.metadataCache,
+      deps.contentCache,
+      deps.transport,
+    );
+    deps.store.set("a.md", { type: "file" });
+
+    expect(() => fs.rmdirSync("a.md", { recursive: true })).toThrow("ENOTDIR");
+    expect(deps.store.has("a.md")).toBe(true);
+    expect(deps.transport.rm).not.toHaveBeenCalled();
+  });
+
+  it("renameSync moves cache metadata and fires the transport", async () => {
     const deps = makeDeps();
     const fs = createFsSync(
       deps.metadataCache,
@@ -114,6 +166,9 @@ describe("sync fs mutations", () => {
 
     expect(deps.store.has(from)).toBe(false);
     expect(deps.store.get(to)).toEqual({ type: "file", size: 2 });
+
+    await new Promise((r) => setTimeout(r, 0));
+
     expect(deps.transport.rename).toHaveBeenCalled();
   });
 
@@ -135,7 +190,7 @@ describe("sync fs mutations", () => {
     expect(metadataCache.get(to)).toEqual({ type: "file", size: 3 });
   });
 
-  it("copyFileSync optimistically mirrors source metadata and fires the transport", () => {
+  it("copyFileSync optimistically mirrors source metadata and fires the transport", async () => {
     const deps = makeDeps();
     const fs = createFsSync(
       deps.metadataCache,
@@ -149,6 +204,9 @@ describe("sync fs mutations", () => {
     fs.copyFileSync("src.md", "dest.md");
 
     expect(deps.store.get(destKey)).toEqual({ type: "file", size: 9 });
+
+    await new Promise((r) => setTimeout(r, 0));
+
     expect(deps.transport.copyFile).toHaveBeenCalled();
   });
 
@@ -195,7 +253,30 @@ describe("sync fs mutations", () => {
 describe("directory mutations honor path resolvers", () => {
   afterEach(() => _reset());
 
-  it("mkdirSync uses the resolved path for cache, echo-guard, and transport", () => {
+  it("copyFileSync sends the resolved source path", async () => {
+    registerPathResolver(
+      (p) => p === "logical.md",
+      () => "physical.md",
+    );
+
+    const deps = makeDeps();
+    const fs = createFsSync(
+      deps.metadataCache,
+      deps.contentCache,
+      deps.transport,
+    );
+
+    deps.store.set("physical.md", { type: "file", size: 1 });
+    fs.copyFileSync("logical.md", "dest.md");
+    await new Promise((r) => setTimeout(r, 0));
+
+    expect(deps.transport.copyFile).toHaveBeenCalledWith(
+      "physical.md",
+      "dest.md",
+    );
+  });
+
+  it("mkdirSync uses the resolved path for cache, echo-guard, and transport", async () => {
     registerPathResolver(
       (p) => p === "logical/dir",
       () => "physical/dir",
@@ -212,12 +293,15 @@ describe("directory mutations honor path resolvers", () => {
 
     expect(deps.store.get("physical/dir")).toEqual({ type: "directory" });
     expect(deps.store.has("logical/dir")).toBe(false);
-    expect(deps.transport.mkdir).toHaveBeenCalledWith("physical/dir", true);
     expect(isRecentSentOp("physical/dir")).toBe(true);
     expect(isRecentSentOp("logical/dir")).toBe(false);
+
+    await new Promise((r) => setTimeout(r, 0));
+
+    expect(deps.transport.mkdir).toHaveBeenCalledWith("physical/dir", true);
   });
 
-  it("rmdirSync uses the resolved path for cache, echo-guard, and transport", () => {
+  it("rmdirSync uses the resolved path for cache, echo-guard, and transport", async () => {
     registerPathResolver(
       (p) => p === "logical/dir",
       () => "physical/dir",
@@ -234,8 +318,11 @@ describe("directory mutations honor path resolvers", () => {
     fs.rmdirSync("logical/dir");
 
     expect(deps.store.has("physical/dir")).toBe(false);
-    expect(deps.transport.rmdir).toHaveBeenCalledWith("physical/dir");
     expect(isRecentSentOp("physical/dir")).toBe(true);
+
+    await new Promise((r) => setTimeout(r, 0));
+
+    expect(deps.transport.rmdir).toHaveBeenCalledWith("physical/dir");
   });
 });
 

@@ -193,6 +193,21 @@ describe("fs route handlers reconcile the coalescer buffer (WRITE_COALESCE_MS > 
   });
 });
 
+describe("appendFile route", () => {
+  it("appends base64 content as bytes", async () => {
+    fs.writeFileSync(abs("a.bin"), Buffer.from([1, 2]));
+
+    const res = await postJson("appendFile", {
+      path: "a.bin",
+      content: Buffer.from([3, 255]).toString("base64"),
+      base64: true,
+    });
+
+    expect(res.ok).toBe(true);
+    expect([...fs.readFileSync(abs("a.bin"))]).toEqual([1, 2, 3, 255]);
+  });
+});
+
 describe("tree route root responses come from the bootstrap cache", () => {
   const getTree = async (query) => (await fetch(u(`tree?${query}`))).json();
 
@@ -413,6 +428,35 @@ describe("mutation routes apply to a watched vault's tree", () => {
       await settle();
 
       expect((await tree())["kept/leaving.md"]).toBeUndefined();
+    } finally {
+      watcher.configure({ ignoredPaths: [".git"] });
+    }
+  });
+
+  it("keeps a file trashed into an ignored .trash in the tree", async () => {
+    watcher.configure({ ignoredPaths: [".trash"] });
+
+    try {
+      await tree();
+      await mkdir(".trash");
+      await writeFile("kept/x.md", "first");
+      await settle();
+
+      expect((await rename("kept/x.md", ".trash/x.md")).ok).toBe(true);
+      await settle();
+
+      const trashed = await tree();
+
+      expect(trashed[".trash/x.md"]).toBeDefined();
+      expect(trashed["kept/x.md"]).toBeUndefined();
+
+      expect((await rename(".trash/x.md", "kept/x.md")).ok).toBe(true);
+      await settle();
+
+      const restored = await tree();
+
+      expect(restored["kept/x.md"]).toBeDefined();
+      expect(restored[".trash/x.md"]).toBeUndefined();
     } finally {
       watcher.configure({ ignoredPaths: [".git"] });
     }
@@ -643,5 +687,72 @@ describe("utimes route", () => {
     const tree = await fetch(u(`tree?vault=${VAULT_ID}`)).then((r) => r.json());
 
     expect(tree["d"]).toMatchObject({ type: "directory" });
+  });
+});
+
+describe("the fs routes' own 4xx answers carry a code", () => {
+  async function answer(res) {
+    return { status: res.status, code: (await res.json()).code };
+  }
+
+  it("an unknown vault is ENOVAULT", async () => {
+    const res = await fetch(u("stat?vault=missing&path=a.md"));
+
+    expect(await answer(res)).toEqual({ status: 404, code: "ENOVAULT" });
+  });
+
+  it("a missing path is EINVAL", async () => {
+    const res = await fetch(u(`stat?vault=${VAULT_ID}`));
+
+    expect(await answer(res)).toEqual({ status: 400, code: "EINVAL" });
+  });
+
+  it("a path outside the vault is EACCES", async () => {
+    const res = await writeFile("../escape.md", "x");
+
+    expect(await answer(res)).toEqual({ status: 403, code: "EACCES" });
+  });
+
+  it("rename without both paths is EINVAL, outside the vault is EACCES", async () => {
+    expect(await answer(await rename("a.md", ""))).toEqual({
+      status: 400,
+      code: "EINVAL",
+    });
+    expect(await answer(await rename("a.md", "../b.md"))).toEqual({
+      status: 403,
+      code: "EACCES",
+    });
+  });
+
+  it("copyFile without both paths is EINVAL, outside the vault is EACCES", async () => {
+    expect(await answer(await copyFile("", "b.md"))).toEqual({
+      status: 400,
+      code: "EINVAL",
+    });
+    expect(await answer(await copyFile("../a.md", "b.md"))).toEqual({
+      status: 403,
+      code: "EACCES",
+    });
+  });
+
+  it("an oversized batch-read is EINVAL", async () => {
+    const paths = Array.from({ length: 1001 }, (_, i) => `n${i}.md`);
+    const res = await postJson("batch-read", { paths });
+
+    expect(await answer(res)).toEqual({ status: 400, code: "EINVAL" });
+  });
+
+  it("downloading a folder is EISDIR, zipping a file is ENOTDIR", async () => {
+    fs.mkdirSync(abs("d"));
+    fs.writeFileSync(abs("f.md"), "x");
+
+    expect(await answer(await fetch(u(`download?${q("d")}`)))).toEqual({
+      status: 400,
+      code: "EISDIR",
+    });
+    expect(await answer(await fetch(u(`download-zip?${q("f.md")}`)))).toEqual({
+      status: 400,
+      code: "ENOTDIR",
+    });
   });
 });

@@ -3,10 +3,20 @@ import {
   initWriteCoalescer,
   bufferWrite,
   cancelPending,
+  enqueue,
+  enqueueMutation,
   enqueueWrite,
   hasPending,
+  _reset,
 } from "./write-coalescer.js";
 import { isRecentSentOp } from "./echo-guard.js";
+import {
+  hasWriteInProgress,
+  initWriteDurability,
+  listFailed,
+  onFailure,
+  _reset as resetDurability,
+} from "./write-durability.js";
 
 function makeTransport() {
   const calls = [];
@@ -164,5 +174,122 @@ describe("client write coalescer", () => {
     releaseFlush();
     await pPost;
     expect(started).toEqual(["boot", "post"]); // strictly after the boot flush
+  });
+});
+
+describe("mutation ordering", () => {
+  afterEach(() => {
+    _reset();
+    resetDurability();
+    vi.useRealTimers();
+  });
+
+  it("drops a write waiting to retry under a path the mutation removes, without waiting for it", async () => {
+    vi.useFakeTimers();
+
+    const transport = makeTransport();
+    const run = vi.fn();
+
+    transport.writeFile.mockRejectedValueOnce(new Error("offline"));
+    initWriteCoalescer(transport);
+    initWriteDurability(transport, enqueue);
+    enqueueWrite("dir/a.md", "a", "utf-8").catch(() => {});
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(hasWriteInProgress("dir/a.md")).toBe(true);
+
+    await enqueueMutation(["dir"], run, { supersededPaths: ["dir"] });
+
+    expect(run).toHaveBeenCalled();
+
+    await vi.advanceTimersByTimeAsync(60000);
+
+    expect(transport.writeFile).toHaveBeenCalledTimes(1);
+    expect(hasWriteInProgress("dir/a.md")).toBe(false);
+  });
+
+  it("a mutation on a folder waits for a write under it that already left the buffer", async () => {
+    const transport = makeTransport();
+    const order = [];
+    let releaseWrite;
+
+    transport.writeFile = vi.fn((path) => {
+      order.push(`writeFile ${path}`);
+
+      return new Promise((res) => {
+        releaseWrite = () => res({ mtime: 1 });
+      });
+    });
+    initWriteCoalescer(transport);
+
+    enqueueWrite("dir/sub/a.md", "a", "utf-8").catch(() => {});
+
+    const mutation = enqueueMutation(["dir"], () => {
+      order.push("rename dir");
+    });
+
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(order).toEqual(["writeFile dir/sub/a.md"]);
+
+    releaseWrite();
+    await mutation;
+
+    expect(order).toEqual(["writeFile dir/sub/a.md", "rename dir"]);
+  });
+
+  it("a mutation sends buffered writes under its paths first", async () => {
+    const transport = makeTransport();
+    const order = [];
+
+    transport.writeFile = vi.fn(async (path) => {
+      order.push(`writeFile ${path}`);
+
+      return { mtime: 1 };
+    });
+    initWriteCoalescer(transport);
+
+    bufferWrite("dir/a.md", "a", "utf-8");
+    bufferWrite("other.md", "o", "utf-8");
+    await enqueueMutation(["dir"], () => {
+      order.push("rm dir");
+    });
+
+    expect(order).toEqual(["writeFile dir/a.md", "rm dir"]);
+    expect(hasPending("other.md")).toBe(true);
+  });
+});
+
+describe("a write rejected permanently", () => {
+  afterEach(() => {
+    _reset();
+    resetDurability();
+    vi.useRealTimers();
+  });
+
+  it("gives up at once and shows the failure", async () => {
+    vi.useFakeTimers();
+
+    const transport = makeTransport();
+    const rejected = new Error("Request Entity Too Large");
+    const failed = [];
+
+    rejected.code = "UNKNOWN";
+    rejected.status = 413;
+    rejected.permanent = true;
+    transport.writeFile.mockRejectedValue(rejected);
+    initWriteCoalescer(transport);
+    initWriteDurability(transport, enqueue);
+    onFailure((path) => failed.push(path));
+
+    await expect(enqueueWrite("big.png", "x", "binary")).rejects.toBe(rejected);
+
+    expect(failed).toEqual(["big.png"]);
+    expect(listFailed()).toEqual(["big.png"]);
+
+    await vi.advanceTimersByTimeAsync(120_000);
+
+    expect(transport.writeFile).toHaveBeenCalledTimes(1);
   });
 });

@@ -15,12 +15,16 @@ import {
   resolvePath,
 } from "./transforms.js";
 import { hasUnconfirmedWrite } from "./write-coalescer.js";
+import { hasFailedWrite } from "./write-durability.js";
 import { wsClient } from "../ws-client.js";
 
 const metadataCache = new MetadataCache();
 const contentCache = new ContentCache();
 
-contentCache.retainWhile(hasUnconfirmedWrite);
+contentCache.retainWhile(
+  (path) => hasUnconfirmedWrite(path) || hasFailedWrite(path),
+);
+contentCache.refuseFillWhile(hasUnconfirmedWrite);
 
 const fsPromises = createFsPromises(metadataCache, contentCache, transport);
 const fsSync = createFsSync(metadataCache, contentCache, transport);

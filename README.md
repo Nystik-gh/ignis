@@ -1,12 +1,12 @@
 <section>
-  <p align="center">
-      <img src="images/ignis.png" alt="Ignis logo" width="200" height="200">
-  </p>
-
-  <h3 align="center">Ignis</h3>
+  <h3 align="center"><img src="images/ignis.png" alt="" width="40" height="40" align="absmiddle"> Ignis</h3>
 
   <p align="center">
     Run Obsidian in the browser. No remote desktop required.
+  </p>
+
+  <p align="center">
+    <img src="docs/images/preview.webp" alt="Obsidian running in Firefox through Ignis" width="560">
   </p>
 
   <h3 align="center">
@@ -82,6 +82,7 @@ Ignis currently ships as a self-hosted server, with a desktop plugin variant pla
 - Obsidian Sync in a logged-in tab, or server-side Headless Sync that runs without a tab open.
 - A cross-origin proxy for plugin requests, with a direct-fetch allowlist for CORS-friendly hosts.
 - A mobile UI on small screens.
+- Saving Ignis to the home screen or desktop as a standalone window.
 
 See the [documentation](https://ignis.thiefling.com/docs/) for the full feature set and setup.
 

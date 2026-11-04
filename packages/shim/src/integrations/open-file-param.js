@@ -51,5 +51,5 @@ function resolveFile(app, path) {
 function stripFileParam() {
   const url = new URL(window.location.href);
   url.searchParams.delete("file");
-  history.replaceState(null, "", url.toString());
+  history.replaceState(history.state, "", url.toString());
 }

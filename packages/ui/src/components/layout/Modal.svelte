@@ -40,6 +40,7 @@
   bind:this={overlayEl}
   on:click={onOverlayClick}
   on:keydown={onKeydown}
+  on:ignis-back={() => dispatch("escape")}
 >
   <div class="modal-shell" style="width: min({width}, 90vw);">
     <div class="modal-header">

@@ -102,6 +102,11 @@ describe("Buffer helpers", () => {
     expect(Buffer.allocUnsafe(2).length).toBe(2);
   });
 
+  it("aliases allocUnsafeSlow to allocUnsafe", () => {
+    expect(Buffer.allocUnsafeSlow).toBe(Buffer.allocUnsafe);
+    expect(Buffer.allocUnsafeSlow(2).toString("hex")).toBe("0000");
+  });
+
   it("reports any Uint8Array as a buffer", () => {
     expect(Buffer.isBuffer(Buffer.from("test"))).toBe(true);
     expect(Buffer.isBuffer(new Uint8Array(1))).toBe(true);

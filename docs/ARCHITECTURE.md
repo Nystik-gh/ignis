@@ -60,12 +60,15 @@ Immediately after the bootstrap response is applied, the client prefetches file 
 | `crypto`             | `randomBytes`, `randomUUID`, `scrypt` use Web Crypto. `createHash` produces real digests for SHA-1/SHA-256/SHA-512/MD5 via `@noble/hashes`. On plain HTTP at a non-localhost origin, where the browser withholds Web Crypto, the shim fills the gaps it safely can: `crypto.subtle.digest` via `@noble/hashes`, `randomUUID` built from `getRandomValues`; the remaining `subtle` operations reject and report. The UI shows a once-per-origin insecure-context modal, and blocked API calls raise notices. |
 | `electron`           | `ipcRenderer` dispatcher, `webFrame` stubs, `clipboard`, `nativeImage`, `safeStorage` (passthrough, reports unavailable). |
 | `@electron/remote`   | Partial: `clipboard`, `shell`, `dialog` (with a sync file picker workaround), `Menu`, `BrowserWindow`, `nativeTheme`, `session`, `systemPreferences`, `screen`, `nativeImage`, `Notification`, `app`. |
-| `zlib`               | Sync + callback variants via pako (`deflate`, `inflate`, `gzip`, `gunzip`, raw). Streaming classes (`createGzip` etc.) throw. |
+| `zlib`               | Sync + callback variants via pako (`deflate`, `inflate`, `gzip`, `gunzip`, raw). Streaming classes (`createGzip` etc.), and Brotli functions throw. |
 | `os`                 | Identity stubs (`platform()` returns `"linux"`, `hostname()` returns `"localhost"`, etc.).      |
 | `events`             | Standard EventEmitter implementation.                                                           |
 | `util`               | Common helpers (`promisify`, `inherits`, type guards).                                          |
 | `child_process`      | All functions throw "not available in the web version."                                         |
 | `net`                | All classes/functions throw.                                                                    |
+| `tty`                | `isatty()` returns false; the stream constructors throw.                                        |
+| `worker_threads`     | `Worker` throws; `isMainThread` is true.                                                        |
+| `module`             | `createRequire()` returns the shim's `require`; `builtinModules` lists the shimmed modules.     |
 | `http` / `https`     | Module is importable but `request()`/`get()` emit an `error` event; `createServer` throws. Plugins should use `requestUrl` or `fetch` (the shim routes cross-origin `fetch` through the server proxy). |
 | `buffer`             | Aliased to the browser `Buffer` polyfill set up by the loader. `from` and `toString` cover utf-8, latin1/ascii/binary, base64, and hex; an unrecognized encoding warns once and falls back to utf-8.                                  |
 | `assert`             | Standard assertions: `assert`, `equal`, `strictEqual`, `deepEqual`, `throws`. |

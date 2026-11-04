@@ -1,12 +1,12 @@
 <section>
-  <p align="center">
-      <img src="images/ignis.png" alt="Ignis logo" width="200" height="200">
-  </p>
-
-  <h3 align="center">Ignis</h3>
+  <h3 align="center"><img src="images/ignis.png" alt="" width="40" height="40" align="absmiddle"> Ignis</h3>
 
   <p align="center">
     Run Obsidian in the browser. No remote desktop required.
+  </p>
+
+  <p align="center">
+    <img src="docs/images/preview.webp" alt="Obsidian running in Firefox through Ignis" width="560">
   </p>
 
   <h3 align="center">
@@ -19,7 +19,7 @@
 
   <p align="center">
     <a href="https://dev.thiefling.com/ignis/"><img src="https://img.shields.io/badge/-Follow_the_devlog-CF8E2C?logo=data%3Aimage%2Fsvg%2Bxml%3Bbase64%2CPHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyNCIgaGVpZ2h0PSIyNCIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSJub25lIiBzdHJva2U9IndoaXRlIiBzdHJva2Utd2lkdGg9IjIiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgc3Ryb2tlLWxpbmVqb2luPSJyb3VuZCIgPiA8cGF0aCBkPSJNMTMuNCAySDZhMiAyIDAgMCAwLTIgMnYxNmEyIDIgMCAwIDAgMiAyaDEyYTIgMiAwIDAgMCAyLTJ2LTcuNCIgLz4gPHBhdGggZD0iTTIgNmg0IiAvPiA8cGF0aCBkPSJNMiAxMGg0IiAvPiA8cGF0aCBkPSJNMiAxNGg0IiAvPiA8cGF0aCBkPSJNMiAxOGg0IiAvPiA8cGF0aCBkPSJNMjEuMzc4IDUuNjI2YTEgMSAwIDEgMC0zLjAwNC0zLjAwNGwtNS4wMSA1LjAxMmEyIDIgMCAwIDAtLjUwNi44NTRsLS44MzcgMi44N2EuNS41IDAgMCAwIC42Mi42MmwyLjg3LS44MzdhMiAyIDAgMCAwIC44NTQtLjUwNnoiIC8%2BIDwvc3ZnPg%3D%3D" alt="Follow development updates on the devlog"></a>
-    <a href="https://discord.gg/8pqQQj4my"><img src="https://img.shields.io/badge/-Join_the_server-5865F2?logo=discord&logoColor=white" alt="Join the Discord server"></a>
+    <a href="https://discord.gg/rgyXBAeNMM"><img src="https://img.shields.io/badge/-Join_the_server-5865F2?logo=discord&logoColor=white" alt="Join the Discord server"></a>
   </p>
 </section>
 
@@ -82,6 +82,7 @@ Ignis currently ships as a self-hosted server, with a desktop plugin variant pla
 - Obsidian Sync in a logged-in tab, or server-side Headless Sync that runs without a tab open.
 - A cross-origin proxy for plugin requests, with a direct-fetch allowlist for CORS-friendly hosts.
 - A mobile UI on small screens.
+- Saving Ignis to the home screen or desktop as a standalone window.
 
 See the [documentation](https://ignis.thiefling.com/docs/) for the full feature set and setup.
 

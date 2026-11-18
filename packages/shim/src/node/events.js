@@ -95,12 +95,87 @@ EventEmitter.prototype.eventNames = function () {
   return Object.keys(this._events);
 };
 
-EventEmitter.prototype.setMaxListeners = function () {
+EventEmitter.prototype.setMaxListeners = function (n) {
+  this._maxListeners = n;
+
   return this;
 };
 
 EventEmitter.prototype.getMaxListeners = function () {
-  return 10;
+  return this._maxListeners ?? EventEmitter.defaultMaxListeners;
 };
 
 EventEmitter.EventEmitter = EventEmitter;
+
+EventEmitter.defaultMaxListeners = 10;
+
+EventEmitter.setMaxListeners = function (
+  n = EventEmitter.defaultMaxListeners,
+  ...targets
+) {
+  if (targets.length === 0) {
+    EventEmitter.defaultMaxListeners = n;
+    return;
+  }
+
+  for (const target of targets) {
+    if (typeof target.setMaxListeners === "function") {
+      target.setMaxListeners(n);
+    }
+  }
+};
+
+EventEmitter.once = function (emitter, name, { signal } = {}) {
+  return new Promise((resolve, reject) => {
+    if (signal?.aborted) {
+      reject(abortError(signal));
+      return;
+    }
+
+    const isEmitter = typeof emitter.on === "function";
+
+    const onEvent = (...args) => {
+      cleanup();
+      resolve(args);
+    };
+
+    const onError = (err) => {
+      cleanup();
+      reject(err);
+    };
+
+    const onAbort = () => {
+      cleanup();
+      reject(abortError(signal));
+    };
+
+    function cleanup() {
+      if (isEmitter) {
+        emitter.removeListener(name, onEvent);
+        emitter.removeListener("error", onError);
+      } else {
+        emitter.removeEventListener(name, onEvent);
+      }
+
+      signal?.removeEventListener("abort", onAbort);
+    }
+
+    if (isEmitter) {
+      emitter.once(name, onEvent);
+      emitter.once("error", onError);
+    } else {
+      emitter.addEventListener(name, onEvent, { once: true });
+    }
+
+    signal?.addEventListener("abort", onAbort, { once: true });
+  });
+};
+
+function abortError(signal) {
+  const err = new Error("The operation was aborted", { cause: signal.reason });
+
+  err.name = "AbortError";
+  err.code = "ABORT_ERR";
+
+  return err;
+}

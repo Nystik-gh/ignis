@@ -57,7 +57,7 @@ const BRIDGE_MANIFEST = {
   isDesktopOnly: false,
 };
 
-installGlobals(); // process, Buffer, window overrides (before require so Buffer is available)
+installGlobals(); // process, Buffer, window overrides
 installRequire(); // shim registry, window.require
 installCssOverrides(); // browser-specific CSS fixes
 installEmulateMobile();

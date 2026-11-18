@@ -18,6 +18,8 @@ import { assertShim } from "./node/assert.js";
 import * as streamShim from "./node/stream.js";
 import * as moduleShim from "./node/module.js";
 import * as workerThreadsShim from "./node/worker_threads.js";
+// Avoid resolving Node's built-in buffer module.
+import * as bufferShim from "buffer/"; // Adding trailing slash resolves to the buffer npm package.
 import { wrapWithProxy, installDebugHelpers } from "./debug.js";
 
 const rawRegistry = {
@@ -44,6 +46,7 @@ const rawRegistry = {
   stream: streamShim,
   module: moduleShim,
   worker_threads: workerThreadsShim,
+  buffer: bufferShim,
 };
 
 moduleShim.builtinModules.push(...Object.keys(rawRegistry));
@@ -54,10 +57,6 @@ const throwOnRequire = new Set(["btime", "get-fonts", "vibrancy-win"]);
 export function installRequire() {
   for (const [name, shim] of Object.entries(rawRegistry)) {
     shimRegistry[name] = wrapWithProxy(shim, name);
-  }
-
-  if (typeof window.Buffer !== "undefined") {
-    shimRegistry.buffer = { Buffer: window.Buffer };
   }
 
   // Add empty long shim (optional protobufjs dependency, gracefully handled)

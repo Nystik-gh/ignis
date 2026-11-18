@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
+import { Buffer as PackageBuffer } from "buffer/";
 
 describe("window.require", () => {
   const stubs = {
@@ -51,8 +52,9 @@ describe("window.require", () => {
     expect(new EventEmitter().emit("ping")).toBe(false);
   });
 
-  it("resolves buffer to a module object exposing the Buffer global", () => {
-    expect(window.require("buffer").Buffer).toBe(window.Buffer);
+  it("resolves buffer and node:buffer to the buffer package's module", () => {
+    expect(window.require("buffer").Buffer).toBe(PackageBuffer);
+    expect(window.require("node:buffer").Buffer).toBe(PackageBuffer);
   });
 
   it("resolves tty to a shim that reports no terminal", () => {

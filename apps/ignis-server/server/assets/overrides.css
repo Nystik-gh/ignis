@@ -19,6 +19,19 @@ body {
   color: var(--text-normal);
 }
 
+/* apply Obsidian's webview sizing to shim iframe */
+.webviewer-content iframe.ignis-webview {
+  flex-grow: 1;
+  width: 100%;
+}
+
+/* hide webview from print */
+@media print {
+  iframe.ignis-webview {
+    display: none;
+  }
+}
+
 /* 100% and 100vh extend under mobile browser bars. */
 @supports (height: 100dvh) {
   body.is-phone {

@@ -4,6 +4,12 @@ import { sendRequest } from "../util/send-request.js";
 
 const listeners = new Map();
 
+let adblockLists = [
+  "https://easylist.to/easylist/easylist.txt",
+  "https://easylist.to/easylist/easyprivacy.txt",
+];
+let adblockFrequency = 4;
+
 const syncHandlers = {
   vault: () => window.__vaultConfig || { id: "default-vault", path: "/" },
   version: () => window.__obsidianVersion || "0.0.0",
@@ -39,6 +45,22 @@ const syncHandlers = {
   }),
 
   "plugin-script-root": () => null,
+
+  "adblock-lists": (lists) => {
+    if (Array.isArray(lists)) {
+      adblockLists = lists;
+    }
+
+    return adblockLists;
+  },
+
+  "adblock-frequency": (frequency) => {
+    if (typeof frequency === "number") {
+      adblockFrequency = frequency;
+    }
+
+    return adblockFrequency;
+  },
 
   terms: () => {
     if (!window.__obsidianTerms) {

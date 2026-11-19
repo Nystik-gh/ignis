@@ -85,3 +85,23 @@ describe("the plugin-script-root channel", () => {
     expect(warn).not.toHaveBeenCalled();
   });
 });
+
+describe("the adblock channels", () => {
+  it("answer Obsidian's defaults and keep values sent to them", () => {
+    vi.spyOn(console, "log").mockImplementation(() => {});
+
+    expect(ipcRenderer.sendSync("adblock-lists")).toEqual([
+      "https://easylist.to/easylist/easylist.txt",
+      "https://easylist.to/easylist/easyprivacy.txt",
+    ]);
+    expect(ipcRenderer.sendSync("adblock-frequency")).toBe(4);
+
+    ipcRenderer.sendSync("adblock-lists", ["https://lists.example.test/a.txt"]);
+    ipcRenderer.sendSync("adblock-frequency", 12);
+
+    expect(ipcRenderer.sendSync("adblock-lists")).toEqual([
+      "https://lists.example.test/a.txt",
+    ]);
+    expect(ipcRenderer.sendSync("adblock-frequency")).toBe(12);
+  });
+});

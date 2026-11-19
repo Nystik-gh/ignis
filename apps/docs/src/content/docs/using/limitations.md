@@ -17,6 +17,19 @@ A plugin can encrypt sensitive data with Electron's `safeStorage`, which uses th
 
 Some of Obsidian's features need browser APIs that are available only in a [secure context](/docs/security/remote-access/): over HTTPS, or on `localhost`. Ignis cannot bypass browser security rules, so over plain HTTP at any other origin those features will not work.
 
+## Web pages
+
+The Web viewer and web embeds in notes and Canvas only support sites that allow embedding. Sites that prevent embedding into an iframe will not load.
+
+Additional Web viewer limitations:
+
+- Reader mode and Save to vault do not work.
+- Clicking links inside the page navigates but doesn't update the address bar.
+- Find in page cannot detect matches inside the iframe.
+- Right-clicking shows the browser context menu rather than Obsidian's.
+- Ad blocking is not supported.
+- Clear Web viewer data has no effect.
+
 ## Smaller differences
 
 - **Spellcheck languages.** A page cannot choose the browser's spellcheck languages, so Ignis disables the setting and points you to your browser's own language settings.

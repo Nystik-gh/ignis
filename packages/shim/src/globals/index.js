@@ -2,6 +2,7 @@ import { processShim } from "../process.js";
 import { installBuffer } from "./buffer.js";
 import { installFetchShim } from "./fetch.js";
 import { installWindowClose, installWindowOpen } from "./window.js";
+import { installWebview } from "./webview.js";
 import {
   installVibrateShim,
   installQueryLocalFontsShim,
@@ -54,6 +55,7 @@ export function installGlobals() {
   installFetchShim();
   installWindowClose();
   installWindowOpen();
+  installWebview();
   installVibrateShim();
   installQueryLocalFontsShim();
   installRandomUUIDShim();

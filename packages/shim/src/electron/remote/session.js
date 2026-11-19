@@ -17,4 +17,16 @@ export const sessionShim = {
     once() {},
     removeListener() {},
   },
+
+  fromPartition() {
+    return {
+      clearStorageData() {
+        return Promise.resolve();
+      },
+
+      clearData() {
+        return Promise.resolve();
+      },
+    };
+  },
 };

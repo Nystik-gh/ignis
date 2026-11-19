@@ -5,6 +5,8 @@ import { reportInsecureApi } from "../../util/insecure-api.js";
 const MIN_FRAME_ZOOM_LEVEL = -2.5;
 const MAX_FRAME_ZOOM_LEVEL = 3;
 
+export const MAIN_WEB_CONTENTS_ID = 1;
+
 const currentWindowState = {
   title: "Obsidian",
   isMaximized: false,
@@ -148,7 +150,7 @@ const currentWindow = {
 };
 
 const currentWebContents = {
-  id: 1,
+  id: MAIN_WEB_CONTENTS_ID,
   _zoomLevel: 0,
 
   get zoomLevel() {

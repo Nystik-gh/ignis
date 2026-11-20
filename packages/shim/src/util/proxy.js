@@ -5,7 +5,7 @@
 import { arrayBufferToBase64, base64ToArrayBuffer } from "./base64.js";
 import { isProxyBlock, reportProxyBlock } from "./proxy-block.js";
 
-export async function proxyFetch({ url, method, headers, body }) {
+export async function proxyFetch({ url, method, headers, body, signal }) {
   let encodedBody = null;
   let binary = false;
 
@@ -37,6 +37,7 @@ export async function proxyFetch({ url, method, headers, body }) {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
+    signal,
   });
 
   if (!res.ok) {

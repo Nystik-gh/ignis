@@ -1,6 +1,7 @@
 import { isSameOrigin, isDirectFetchHost } from "../util/url.js";
 import { proxyFetch } from "../util/proxy.js";
 import { desktopHeaders } from "../util/desktop-identity.js";
+import { hasHeader } from "../util/headers.js";
 
 const NULL_BODY_STATUSES = new Set([204, 205, 304]);
 
@@ -12,12 +13,6 @@ function redactUrl(url) {
   } catch {
     return url.split(/[?#]/)[0];
   }
-}
-
-function hasHeader(headers, name) {
-  return Object.keys(headers).some(
-    (key) => key.toLowerCase() === name.toLowerCase(),
-  );
 }
 
 function isTextBody(body) {

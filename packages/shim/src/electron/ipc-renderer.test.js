@@ -42,7 +42,25 @@ describe("a requestUrl call through IPC", () => {
       body: "{}",
     });
 
-    expect(proxied[0].headers).toEqual({ "Content-Type": "application/json" });
+    expect(proxied[0].headers).toEqual({
+      "Content-Type": "application/json",
+      "user-agent": expect.any(String),
+    });
+  });
+});
+
+describe("a failed requestUrl call through IPC", () => {
+  it("replies with the proxy's Error", async () => {
+    vi.spyOn(console, "log").mockImplementation(() => {});
+    window.__originalFetch = async () => ({
+      ok: false,
+      json: async () => ({ error: "ECONNREFUSED" }),
+    });
+
+    const reply = await requestUrl({ url: "https://api.example.test/item" });
+
+    expect(reply.error).toBeInstanceOf(Error);
+    expect(reply.error.message).toBe("ECONNREFUSED");
   });
 });
 

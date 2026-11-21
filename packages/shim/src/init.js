@@ -1,5 +1,4 @@
 import { fsShim } from "./fs/index.js";
-import { installRequestUrlShim } from "./request-url.js";
 import { vaultService } from "@ignis/services";
 import { registerReadTransform } from "./fs/transforms.js";
 import {
@@ -306,7 +305,6 @@ export function initialize() {
     window.__ignisBootReady = Promise.resolve();
   }
 
-  installRequestUrlShim();
   initWorkspacePatch();
   initPopoutGuard();
 }

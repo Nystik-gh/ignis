@@ -2,12 +2,8 @@
 
 import { isSameOrigin, isDirectFetchHost } from "./url.js";
 import { proxyFetch } from "./proxy.js";
-
-function hasContentTypeHeader(headers) {
-  return Object.keys(headers).some(
-    (key) => key.toLowerCase() === "content-type",
-  );
-}
+import { desktopHeaders } from "./desktop-identity.js";
+import { hasHeader } from "./headers.js";
 
 async function fetchDirect({ url, method, headers, body }) {
   const nativeFetch = window.__originalFetch || fetch;
@@ -23,8 +19,14 @@ async function fetchDirect({ url, method, headers, body }) {
 export async function sendRequest({ url, method, headers, body, contentType }) {
   const requestHeaders = { ...headers };
 
-  if (contentType && !hasContentTypeHeader(requestHeaders)) {
+  if (contentType && !hasHeader(requestHeaders, "content-type")) {
     requestHeaders["Content-Type"] = contentType;
+  }
+
+  const isDirect = isSameOrigin(url) || isDirectFetchHost(url);
+
+  if (!isDirect && !hasHeader(requestHeaders, "user-agent")) {
+    requestHeaders["user-agent"] = desktopHeaders()["user-agent"];
   }
 
   const request = {
@@ -34,9 +36,5 @@ export async function sendRequest({ url, method, headers, body, contentType }) {
     body,
   };
 
-  if (isSameOrigin(url) || isDirectFetchHost(url)) {
-    return fetchDirect(request);
-  }
-
-  return proxyFetch(request);
+  return isDirect ? fetchDirect(request) : proxyFetch(request);
 }

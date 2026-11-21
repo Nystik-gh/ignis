@@ -167,9 +167,7 @@ async function handleRequestUrl(requestId, request) {
       body: result.body,
     });
   } catch (e) {
-    ipcRenderer._emit(requestId, {
-      error: e.message,
-    });
+    ipcRenderer._emit(requestId, { error: e });
   }
 }
 

@@ -54,7 +54,10 @@ describe("the Content-Type a requestUrl call asks for", () => {
       contentType: "application/json",
     });
 
-    expect(proxied[0].headers).toEqual({ "Content-Type": "application/json" });
+    expect(proxied[0].headers).toEqual({
+      "Content-Type": "application/json",
+      "user-agent": expect.any(String),
+    });
   });
 
   it("leaves a Content-Type the caller set, in any capitalization", async () => {
@@ -66,18 +69,47 @@ describe("the Content-Type a requestUrl call asks for", () => {
       contentType: "application/json",
     });
 
-    expect(proxied[0].headers).toEqual({ "content-type": "text/plain" });
+    expect(proxied[0].headers).toEqual({
+      "content-type": "text/plain",
+      "user-agent": expect.any(String),
+    });
   });
 
-  it("adds nothing when the call names no content type", async () => {
+  it("adds no Content-Type when the call names no content type", async () => {
     await sendRequest({ url: "https://api.example.test/annotations" });
 
-    expect(proxied[0].headers).toEqual({});
+    expect(proxied[0].headers).toEqual({ "user-agent": expect.any(String) });
     expect(proxied[0].method).toBe("GET");
   });
 });
 
+describe("the User-Agent a proxied requestUrl call sends", () => {
+  it("is the desktop client's when the caller set none", async () => {
+    window.__obsidianVersion = "1.14.4";
+
+    await sendRequest({ url: "https://api.github.com/repos/a/b" });
+
+    expect(proxied[0].headers["user-agent"]).toContain("obsidian/1.14.4");
+  });
+
+  it("is the caller's when set, in any capitalization", async () => {
+    await sendRequest({
+      url: "https://api.github.com/repos/a/b",
+      headers: { "User-Agent": "caller-agent" },
+    });
+
+    expect(proxied[0].headers).toEqual({ "User-Agent": "caller-agent" });
+  });
+});
+
 describe("the route a requestUrl call takes", () => {
+  it("goes directly to the Ignis origin, with no User-Agent added", async () => {
+    await sendRequest({ url: "https://ignis.test/api/thing" });
+
+    expect(proxied).toEqual([]);
+    expect(direct[0].headers).toEqual({});
+  });
+
   it("goes directly to a direct-fetch host, with the Content-Type applied", async () => {
     const result = await sendRequest({
       url: "http://kavita.lan:5000/api/annotations",

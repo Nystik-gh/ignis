@@ -12,26 +12,57 @@ const {
 const MAX_RESPONSE_BYTES = 50 * 1024 * 1024;
 const MAX_REDIRECTS = 5;
 const REDIRECT_CODES = new Set([301, 302, 303, 307, 308]);
+const FRAMING_HEADERS = new Set(["content-length", "transfer-encoding"]);
+const CREDENTIAL_HEADERS = new Set(["authorization", "cookie"]);
+const REQUEST_BODY_HEADERS = new Set([
+  "content-type",
+  "content-encoding",
+  "content-language",
+  "content-location",
+]);
+const NORMALIZED_METHODS = new Set([
+  "DELETE",
+  "GET",
+  "HEAD",
+  "OPTIONS",
+  "POST",
+  "PUT",
+]);
 
 function sameOrigin(a, b) {
   return a.protocol === b.protocol && a.host === b.host;
 }
 
-// Let the proxy handle the Content-Length and Transfer-Encoding headers itself.
-function stripRequestFramingHeaders(headers) {
+function withoutHeaders(headers, names) {
   const out = {};
 
   for (const [key, val] of Object.entries(headers)) {
-    const lower = key.toLowerCase();
-
-    if (lower === "content-length" || lower === "transfer-encoding") {
-      continue;
+    if (!names.has(key.toLowerCase())) {
+      out[key] = val;
     }
-
-    out[key] = val;
   }
 
   return out;
+}
+
+// Let the proxy handle the Content-Length and Transfer-Encoding headers itself.
+function stripRequestFramingHeaders(headers) {
+  return withoutHeaders(headers, FRAMING_HEADERS);
+}
+
+function normalizeMethod(method) {
+  const isAsciiWord = typeof method === "string" && /^[a-z]+$/i.test(method);
+  const upper = isAsciiWord ? method.toUpperCase() : null;
+
+  return NORMALIZED_METHODS.has(upper) ? upper : method;
+}
+
+function redirectBecomesGet(status, method) {
+  if (status === 303) {
+    return method !== "GET" && method !== "HEAD";
+  }
+
+  return (status === 301 || status === 302) && method === "POST";
 }
 
 function requestOnce(targetUrl, method, headers, body) {
@@ -65,7 +96,7 @@ function requestOnce(targetUrl, method, headers, body) {
 // Follow redirects manually so every hop runs through safeLookup and is re-checked.
 async function proxyRequest({ url, method, headers, body }) {
   let current = new URL(url);
-  let currentMethod = method;
+  let currentMethod = normalizeMethod(method);
   let currentHeaders = headers;
   let currentBody = body;
 
@@ -95,23 +126,13 @@ async function proxyRequest({ url, method, headers, body }) {
 
     // The caller did not choose the redirect target, so credentials do not cross origins.
     if (!sameOrigin(current, next)) {
-      currentHeaders = { ...currentHeaders };
-
-      for (const key of Object.keys(currentHeaders)) {
-        const lower = key.toLowerCase();
-
-        if (lower === "authorization" || lower === "cookie") {
-          delete currentHeaders[key];
-        }
-      }
+      currentHeaders = withoutHeaders(currentHeaders, CREDENTIAL_HEADERS);
     }
 
-    // 301/302/303 turn a non-GET follow-up into a GET; 307/308 preserve method and body.
-    if (res.statusCode !== 307 && res.statusCode !== 308) {
-      if (currentMethod !== "GET" && currentMethod !== "HEAD") {
-        currentMethod = "GET";
-        currentBody = null;
-      }
+    if (redirectBecomesGet(res.statusCode, currentMethod)) {
+      currentMethod = "GET";
+      currentBody = null;
+      currentHeaders = withoutHeaders(currentHeaders, REQUEST_BODY_HEADERS);
     }
 
     current = next;

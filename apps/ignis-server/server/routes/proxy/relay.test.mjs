@@ -1,9 +1,16 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { createRequire } from "module";
 import http from "node:http";
 
 const require = createRequire(import.meta.url);
-const { requestOnce, stripRequestFramingHeaders } = require("./relay.js");
+
+process.env.PROXY_ALLOW_PRIVATE_HOSTS = "127.0.0.1";
+
+const {
+  proxyRequest,
+  requestOnce,
+  stripRequestFramingHeaders,
+} = require("./relay.js");
 
 describe("stripRequestFramingHeaders", () => {
   it("drops content-length and transfer-encoding case-insensitively", () => {
@@ -116,5 +123,139 @@ describe("requestOnce framing", () => {
     } finally {
       srv.close();
     }
+  });
+});
+
+describe("a redirected request", () => {
+  const SENT_HEADERS = {
+    "Content-Type": "text/plain",
+    "content-encoding": "identity",
+    "Content-Language": "sv",
+    "Content-Location": "/draft",
+    Authorization: "Bearer tok",
+    Cookie: "c=1",
+  };
+
+  let target;
+  let elsewhere;
+
+  function startServer(redirectOrigin = "") {
+    return new Promise((resolve) => {
+      const srv = http.createServer((req, res) => {
+        const redirect = req.url.match(/^\/redirect\/(\d+)$/);
+
+        if (redirect) {
+          res.writeHead(Number(redirect[1]), {
+            Location: `${redirectOrigin}/target`,
+          });
+          res.end();
+          return;
+        }
+
+        const chunks = [];
+        req.on("data", (c) => chunks.push(c));
+        req.on("end", () => {
+          const arrived = {
+            method: req.method,
+            body: Buffer.concat(chunks).toString("utf8"),
+            contentType: req.headers["content-type"] ?? null,
+            contentEncoding: req.headers["content-encoding"] ?? null,
+            contentLanguage: req.headers["content-language"] ?? null,
+            contentLocation: req.headers["content-location"] ?? null,
+            authorization: req.headers["authorization"] ?? null,
+            cookie: req.headers["cookie"] ?? null,
+          };
+
+          res.writeHead(200, { "X-Arrived": JSON.stringify(arrived) });
+          res.end();
+        });
+      });
+
+      srv.listen(0, "127.0.0.1", () => resolve(srv));
+    });
+  }
+
+  const origin = (srv) => `http://127.0.0.1:${srv.address().port}`;
+
+  beforeAll(async () => {
+    target = await startServer();
+    elsewhere = await startServer(origin(target));
+  });
+
+  afterAll(() => {
+    target.close();
+    elsewhere.close();
+  });
+
+  async function arrival(status, method, from = target) {
+    const res = await proxyRequest({
+      url: `${origin(from)}/redirect/${status}`,
+      method,
+      headers: SENT_HEADERS,
+      body: "payload",
+    });
+
+    res.resume();
+
+    return JSON.parse(res.headers["x-arrived"]);
+  }
+
+  const kept = {
+    contentType: "text/plain",
+    contentEncoding: "identity",
+    contentLanguage: "sv",
+    contentLocation: "/draft",
+    authorization: "Bearer tok",
+    cookie: "c=1",
+  };
+
+  it.each([
+    [301, "PUT"],
+    [302, "DELETE"],
+    [307, "POST"],
+    [308, "POST"],
+  ])("keeps the method and body on a %i after a %s", async (status, method) => {
+    expect(await arrival(status, method)).toEqual({
+      method,
+      body: "payload",
+      ...kept,
+    });
+  });
+
+  it("keeps a HEAD on a 303", async () => {
+    expect(await arrival(303, "HEAD")).toEqual({
+      method: "HEAD",
+      body: "",
+      ...kept,
+    });
+  });
+
+  it.each([
+    [301, "POST"],
+    [302, "POST"],
+    [302, "post"],
+    [303, "PUT"],
+  ])(
+    "arrives as a GET without body headers on a %i after a %s",
+    async (status, method) => {
+      expect(await arrival(status, method)).toEqual({
+        method: "GET",
+        body: "",
+        contentType: null,
+        contentEncoding: null,
+        contentLanguage: null,
+        contentLocation: null,
+        authorization: "Bearer tok",
+        cookie: "c=1",
+      });
+    },
+  );
+
+  it("drops Authorization and Cookie when the redirect leaves the origin", async () => {
+    const arrived = await arrival(307, "POST", elsewhere);
+
+    expect(arrived.authorization).toBeNull();
+    expect(arrived.cookie).toBeNull();
+    expect(arrived.body).toBe("payload");
   });
 });

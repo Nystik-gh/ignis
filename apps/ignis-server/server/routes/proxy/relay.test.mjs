@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { createRequire } from "module";
 import http from "node:http";
+import dns from "node:dns";
 
 const require = createRequire(import.meta.url);
 
@@ -360,5 +361,90 @@ describe("a failed relay", () => {
       message: "Upstream connection failed (ECONNREFUSED)",
       code: "ECONNREFUSED",
     });
+  });
+});
+
+describe("an idle upstream", () => {
+  let upstream;
+  let upstreamOrigin;
+  let socketClosed;
+
+  beforeAll(async () => {
+    upstream = http.createServer((req, res) => {
+      socketClosed = new Promise((resolve) => req.socket.on("close", resolve));
+
+      if (req.url === "/stall") {
+        res.writeHead(200, { "Content-Length": "100" });
+        res.write("part");
+      }
+
+      if (req.url === "/ok") {
+        res.end("ok");
+      }
+    });
+
+    await new Promise((resolve) => upstream.listen(0, "127.0.0.1", resolve));
+    upstreamOrigin = `http://127.0.0.1:${upstream.address().port}`;
+  });
+
+  afterAll(() => {
+    upstream.close();
+  });
+
+  const idle = (path) =>
+    relayOnce({
+      url: `${upstreamOrigin}${path}`,
+      method: "GET",
+      headers: {},
+      body: null,
+      idleTimeoutMs: 200,
+    });
+
+  it("rejects with upstream-timeout and closes the connection when no response comes", async () => {
+    await expect(idle("/hang")).rejects.toMatchObject({
+      statusCode: 504,
+      message: "Upstream timed out",
+      code: "upstream-timeout",
+    });
+
+    await socketClosed;
+  });
+
+  it("rejects with upstream-timeout and closes the connection when the body stalls", async () => {
+    await expect(idle("/stall")).rejects.toMatchObject({
+      statusCode: 504,
+      code: "upstream-timeout",
+    });
+
+    await socketClosed;
+  });
+
+  it("gives a slow lookup the idle timeout, not the agent's socket timeout", async () => {
+    const realLookup = dns.lookup;
+    const agentTimeout = http.globalAgent.options.timeout;
+    const { port } = upstream.address();
+
+    http.globalAgent.options.timeout = 100;
+    dns.lookup = (host, options, callback) =>
+      setTimeout(
+        () => callback(null, [{ address: "127.0.0.1", family: 4 }]),
+        300,
+      );
+
+    try {
+      const res = await requestOnce(
+        new URL(`http://slow-lookup.test:${port}/ok`),
+        "GET",
+        {},
+        null,
+        { idleTimeoutMs: 2000 },
+      );
+      res.resume();
+
+      expect(res.statusCode).toBe(200);
+    } finally {
+      dns.lookup = realLookup;
+      http.globalAgent.options.timeout = agentTimeout;
+    }
   });
 });

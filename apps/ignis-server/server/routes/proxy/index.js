@@ -19,6 +19,14 @@ router.post("/", async (req, res) => {
     return res.status(400).json({ error: "Missing url" });
   }
 
+  const upstreamAbort = new AbortController();
+
+  res.on("close", () => {
+    if (!res.writableFinished) {
+      upstreamAbort.abort();
+    }
+  });
+
   const proxyMode = settings.get("proxyMode");
 
   if (proxyMode === "disabled") {
@@ -68,6 +76,7 @@ router.post("/", async (req, res) => {
       method: method || "GET",
       headers: headers || {},
       body: reqBody,
+      signal: upstreamAbort.signal,
     };
 
     const credentials = signinCredentials(req.body);
@@ -81,6 +90,10 @@ router.post("/", async (req, res) => {
 
     res.json(relayed);
   } catch (e) {
+    if (upstreamAbort.signal.aborted) {
+      return;
+    }
+
     if (e.block) {
       // leak-allow
       const body = { error: e.message, ...e.block };

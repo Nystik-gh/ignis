@@ -10,6 +10,7 @@ const {
 } = require("./ssrf-guard");
 
 const MAX_RESPONSE_BYTES = 50 * 1024 * 1024;
+const UPSTREAM_IDLE_TIMEOUT_MS = 5 * 60 * 1000;
 const MAX_REDIRECTS = 5;
 const REDIRECT_CODES = new Set([301, 302, 303, 307, 308]);
 const FRAMING_HEADERS = new Set(["content-length", "transfer-encoding"]);
@@ -73,7 +74,7 @@ function upstreamTooLarge() {
 }
 
 function connectionError(e) {
-  if (e.block || !e.code) {
+  if (e.block || e.expose || !e.code) {
     return e;
   }
 
@@ -83,7 +84,13 @@ function connectionError(e) {
   });
 }
 
-function requestOnce(targetUrl, method, headers, body) {
+function requestOnce(
+  targetUrl,
+  method,
+  headers,
+  body,
+  { signal, idleTimeoutMs = UPSTREAM_IDLE_TIMEOUT_MS } = {},
+) {
   return new Promise((resolve, reject) => {
     const mod = targetUrl.protocol === "https:" ? https : http;
     const outHeaders = stripRequestFramingHeaders(headers);
@@ -95,11 +102,35 @@ function requestOnce(targetUrl, method, headers, body) {
       outHeaders["Content-Length"] = Buffer.byteLength(body);
     }
 
+    let response = null;
+
     const req = mod.request(
       targetUrl,
-      { method, headers: outHeaders, lookup: safeLookup },
-      resolve,
+      {
+        method,
+        headers: outHeaders,
+        lookup: safeLookup,
+        signal,
+        timeout: idleTimeoutMs,
+      },
+      (res) => {
+        response = res;
+        resolve(res);
+      },
     );
+
+    req.on("timeout", () => {
+      const timedOut = httpError(504, "Upstream timed out", {
+        code: "upstream-timeout",
+        expose: true,
+      });
+
+      if (response) {
+        response.destroy(timedOut);
+      }
+
+      req.destroy(timedOut);
+    });
 
     req.on("error", (e) => reject(connectionError(e)));
 
@@ -112,7 +143,14 @@ function requestOnce(targetUrl, method, headers, body) {
 }
 
 // Follow redirects manually so every hop runs through safeLookup and is re-checked.
-async function proxyRequest({ url, method, headers, body }) {
+async function proxyRequest({
+  url,
+  method,
+  headers,
+  body,
+  signal,
+  idleTimeoutMs,
+}) {
   let current = new URL(url);
   let currentMethod = normalizeMethod(method);
   let currentHeaders = headers;
@@ -133,6 +171,7 @@ async function proxyRequest({ url, method, headers, body }) {
       currentMethod,
       currentHeaders,
       currentBody,
+      { signal, idleTimeoutMs },
     );
 
     if (!REDIRECT_CODES.has(res.statusCode) || !res.headers.location) {
@@ -234,8 +273,22 @@ function readBody(res, maxBytes) {
   });
 }
 
-async function relayOnce({ url, method, headers, body }) {
-  const upstream = await proxyRequest({ url, method, headers, body });
+async function relayOnce({
+  url,
+  method,
+  headers,
+  body,
+  signal,
+  idleTimeoutMs,
+}) {
+  const upstream = await proxyRequest({
+    url,
+    method,
+    headers,
+    body,
+    signal,
+    idleTimeoutMs,
+  });
   const declaredLength = Number(upstream.headers["content-length"]);
 
   if (Number.isFinite(declaredLength) && declaredLength > MAX_RESPONSE_BYTES) {

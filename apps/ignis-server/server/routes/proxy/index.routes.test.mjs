@@ -26,6 +26,7 @@ let base;
 let upstream;
 let upstreamBase;
 let refusedBase;
+let onHangingRequest;
 
 beforeAll(async () => {
   const app = express();
@@ -39,6 +40,16 @@ beforeAll(async () => {
   base = `http://127.0.0.1:${server.address().port}`;
 
   upstream = http.createServer((req, res) => {
+    if (req.url === "/hang") {
+      onHangingRequest(req);
+      return;
+    }
+
+    if (req.url === "/slow") {
+      setTimeout(() => res.end("done"), 200);
+      return;
+    }
+
     if (req.url === "/upload") {
       req.resume();
       req.on("end", () => res.end());
@@ -230,5 +241,39 @@ describe("the proxy upload limit", () => {
 
     expect(res.status).toBe(413);
     expect(await res.json()).toEqual(TOO_LARGE);
+  });
+});
+
+describe("a client that waits for its proxy call", () => {
+  it("gets the upstream response", async () => {
+    const res = await proxy(`${upstreamBase}/slow`);
+    const relayed = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(Buffer.from(relayed.body, "base64").toString()).toBe("done");
+  });
+});
+
+describe("a client that aborts its proxy call", () => {
+  it("closes the upstream connection", async () => {
+    const abort = new AbortController();
+    const arrived = new Promise((resolve) => {
+      onHangingRequest = resolve;
+    });
+    const call = fetch(`${base}/api/proxy`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ url: `${upstreamBase}/hang` }),
+      signal: abort.signal,
+    });
+
+    const upstreamRequest = await arrived;
+    const closed = new Promise((resolve) =>
+      upstreamRequest.socket.on("close", resolve),
+    );
+    abort.abort();
+
+    await expect(call).rejects.toThrow();
+    await closed;
   });
 });

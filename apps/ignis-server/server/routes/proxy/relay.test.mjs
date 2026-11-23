@@ -8,6 +8,7 @@ process.env.PROXY_ALLOW_PRIVATE_HOSTS = "127.0.0.1";
 
 const {
   proxyRequest,
+  relayOnce,
   requestOnce,
   stripRequestFramingHeaders,
 } = require("./relay.js");
@@ -257,5 +258,107 @@ describe("a redirected request", () => {
     expect(arrived.authorization).toBeNull();
     expect(arrived.cookie).toBeNull();
     expect(arrived.body).toBe("payload");
+  });
+});
+
+describe("a failed relay", () => {
+  let upstream;
+  let upstreamOrigin;
+
+  beforeAll(async () => {
+    upstream = http.createServer((req, res) => {
+      if (req.url === "/huge") {
+        const chunk = Buffer.alloc(1024 * 1024);
+        res.writeHead(200);
+
+        for (let i = 0; i < 51; i++) {
+          res.write(chunk);
+        }
+
+        res.end();
+        return;
+      }
+
+      if (req.url === "/declared") {
+        res.writeHead(200, { "Content-Length": String(60 * 1024 * 1024) });
+        res.write("x");
+        return;
+      }
+
+      if (req.url === "/reset") {
+        res.writeHead(200, { "Content-Length": "1000" });
+        res.write("partial", () => res.socket.destroy());
+        return;
+      }
+
+      if (req.url === "/corrupt") {
+        res.writeHead(200, { "Content-Encoding": "gzip" });
+        res.end("not gzip");
+        return;
+      }
+
+      res.writeHead(302, { Location: "/loop" });
+      res.end();
+    });
+
+    await new Promise((resolve) => upstream.listen(0, "127.0.0.1", resolve));
+    upstreamOrigin = `http://127.0.0.1:${upstream.address().port}`;
+  });
+
+  afterAll(() => {
+    upstream.close();
+  });
+
+  const relay = (url) =>
+    relayOnce({ url, method: "GET", headers: {}, body: null });
+
+  it.each([
+    ["chunked", "/huge"],
+    ["declared", "/declared"],
+  ])(
+    "rejects a %s response over the cap with upstream-too-large",
+    async (_, path) => {
+      await expect(relay(`${upstreamOrigin}${path}`)).rejects.toMatchObject({
+        statusCode: 413,
+        message: "Upstream response too large",
+        code: "upstream-too-large",
+      });
+    },
+  );
+
+  it("rejects six redirects with too-many-redirects", async () => {
+    await expect(relay(`${upstreamOrigin}/loop`)).rejects.toMatchObject({
+      statusCode: 508,
+      code: "too-many-redirects",
+    });
+  });
+
+  it("rejects a corrupt gzip body with decode-failed", async () => {
+    await expect(relay(`${upstreamOrigin}/corrupt`)).rejects.toMatchObject({
+      statusCode: 502,
+      message: "Could not decode the upstream response",
+      code: "decode-failed",
+    });
+  });
+
+  it("rejects a connection reset mid-body with its errno and the fixed message", async () => {
+    await expect(relay(`${upstreamOrigin}/reset`)).rejects.toMatchObject({
+      statusCode: 502,
+      message: "Upstream connection failed (ECONNRESET)",
+      code: "ECONNRESET",
+    });
+  });
+
+  it("rejects a refused port with its errno and the fixed message", async () => {
+    const closed = http.createServer();
+    await new Promise((resolve) => closed.listen(0, "127.0.0.1", resolve));
+    const { port } = closed.address();
+    await new Promise((resolve) => closed.close(resolve));
+
+    await expect(relay(`http://127.0.0.1:${port}/`)).rejects.toMatchObject({
+      statusCode: 502,
+      message: "Upstream connection failed (ECONNREFUSED)",
+      code: "ECONNREFUSED",
+    });
   });
 });

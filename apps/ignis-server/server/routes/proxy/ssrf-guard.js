@@ -117,9 +117,15 @@ function addressAllowed(ip) {
   return !isPrivateIp(ip) || allowsAddress(privateAllowList, ip);
 }
 
-function httpError(status, message) {
+function httpError(status, message, { code, expose = false } = {}) {
   const e = new Error(message);
   e.statusCode = status;
+  e.expose = expose;
+
+  if (code) {
+    e.code = code;
+  }
+
   return e;
 }
 

@@ -16,6 +16,7 @@ process.env.PROXY_ALLOW_PRIVATE_HOSTS = "127.0.0.1";
 const dns = require("dns");
 const settings = require("../../settings");
 const proxyRouter = require("./index");
+const { bodyLimits } = require("../../body-limits");
 const express = require("express");
 
 const realLookup = dns.promises.lookup;
@@ -24,10 +25,11 @@ let server;
 let base;
 let upstream;
 let upstreamBase;
+let refusedBase;
 
 beforeAll(async () => {
   const app = express();
-  app.use(express.json());
+  app.use(bodyLimits());
   app.use("/api/proxy", proxyRouter);
 
   await new Promise((resolve) => {
@@ -36,8 +38,13 @@ beforeAll(async () => {
 
   base = `http://127.0.0.1:${server.address().port}`;
 
-  // Upstream for the redirect-hop test.
   upstream = http.createServer((req, res) => {
+    if (req.url === "/upload") {
+      req.resume();
+      req.on("end", () => res.end());
+      return;
+    }
+
     res.writeHead(302, { Location: "http://10.9.9.9/blocked" });
     res.end();
   });
@@ -47,6 +54,11 @@ beforeAll(async () => {
   });
 
   upstreamBase = `http://127.0.0.1:${upstream.address().port}`;
+
+  const closed = http.createServer();
+  await new Promise((resolve) => closed.listen(0, resolve));
+  refusedBase = `http://127.0.0.1:${closed.address().port}`;
+  await new Promise((resolve) => closed.close(resolve));
 });
 
 afterAll(() => {
@@ -64,15 +76,21 @@ afterAll(() => {
 
 beforeEach(() => {
   dns.promises.lookup = realLookup;
-  settings.update({ proxyMode: "any", proxyAllowlist: [] });
+  settings.update({
+    proxyMode: "any",
+    proxyAllowlist: [],
+    maxBodyBytes: settings.DEFAULTS.maxBodyBytes,
+  });
 });
 
-const proxy = (url) =>
-  fetch(`${base}/api/proxy/`, {
+const post = (route, payload) =>
+  fetch(`${base}${route}`, {
     method: "POST",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify({ url }),
+    body: JSON.stringify(payload),
   });
+
+const proxy = (url) => post("/api/proxy/", { url });
 
 describe("proxy guard responses", () => {
   it("rejects a private IP literal with a private-host block body", async () => {
@@ -153,5 +171,64 @@ describe("proxy guard responses", () => {
 
     expect(res.status).toBe(400);
     expect(body.code).toBeUndefined();
+  });
+});
+
+describe("relay error responses", () => {
+  it("returns an exposed relay error's message and code", async () => {
+    const res = await proxy(`${refusedBase}/`);
+
+    expect(res.status).toBe(502);
+    expect(await res.json()).toEqual({
+      error: "Upstream connection failed (ECONNREFUSED)",
+      code: "ECONNREFUSED",
+    });
+  });
+
+  it("keeps the sanitized shape for any other error", async () => {
+    const res = await post("/api/proxy", {
+      url: `${upstreamBase}/upload`,
+      method: "NOT A TOKEN",
+    });
+
+    expect(res.status).toBe(502);
+    expect(await res.json()).toEqual({
+      error: "ERR_INVALID_HTTP_TOKEN",
+      code: "ERR_INVALID_HTTP_TOKEN",
+    });
+  });
+});
+
+describe("the proxy upload limit", () => {
+  const MAX = 300 * 1024;
+  const TOO_LARGE = {
+    error:
+      "Request body too large (Max request body in Settings > Ignis > General > Security)",
+    code: "body-too-large",
+  };
+
+  const upload = (bytes) =>
+    post("/api/proxy", {
+      url: `${upstreamBase}/upload`,
+      method: "PUT",
+      body: Buffer.alloc(bytes, 7).toString("base64"),
+      binary: true,
+    });
+
+  beforeEach(() => {
+    settings.update({ maxBodyBytes: MAX });
+  });
+
+  it("passes a binary upload of exactly Max request body", async () => {
+    const res = await upload(MAX);
+
+    expect(res.status).toBe(200);
+  });
+
+  it("answers one byte more with the readable 413", async () => {
+    const res = await upload(MAX + 1);
+
+    expect(res.status).toBe(413);
+    expect(await res.json()).toEqual(TOO_LARGE);
   });
 });

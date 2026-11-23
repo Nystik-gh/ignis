@@ -3,6 +3,7 @@ const path = require("path");
 const compression = require("compression");
 const config = require("./config");
 const settings = require("./settings");
+const { bodyLimits } = require("./body-limits");
 const { cacheControlFor } = require("./static/cache-headers");
 const { buildIndexHtml } = require("./static/index-html");
 const { getObsidianTerms } = require("./static/obsidian-terms");
@@ -44,18 +45,7 @@ const ANSI_RESET = "\x1b[0m";
 
 const app = express();
 
-// Reject oversized requests by Content-Length before parsing.
-app.use((req, res, next) => {
-  const declared = Number(req.headers["content-length"]);
-
-  if (Number.isFinite(declared) && declared > settings.get("maxBodyBytes")) {
-    return res.status(413).json({ error: "Request body too large" });
-  }
-
-  next();
-});
-
-app.use(express.json({ limit: settings.MAX_BODY_BACKSTOP }));
+app.use(bodyLimits());
 app.use(compression());
 
 // logger middleware

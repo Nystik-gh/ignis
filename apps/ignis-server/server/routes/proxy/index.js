@@ -7,6 +7,7 @@ const {
 } = require("../../obsidian-account/signin");
 const { assertPublicUrl } = require("./ssrf-guard");
 const { relayOnce } = require("./relay");
+const { PROXY_BODY_TOO_LARGE } = require("../../body-limits");
 
 const router = express.Router();
 
@@ -53,6 +54,14 @@ router.post("/", async (req, res) => {
   try {
     const reqBody =
       binary && typeof body === "string" ? Buffer.from(body, "base64") : body;
+    const bodyBytes =
+      typeof reqBody === "string" || Buffer.isBuffer(reqBody)
+        ? Buffer.byteLength(reqBody)
+        : 0;
+
+    if (bodyBytes > settings.get("maxBodyBytes")) {
+      return res.status(413).json(PROXY_BODY_TOO_LARGE);
+    }
 
     const relayArgs = {
       url,
@@ -70,16 +79,18 @@ router.post("/", async (req, res) => {
       );
     }
 
-    if (relayed.tooLarge) {
-      return res.status(413).json({ error: "Upstream response too large" });
-    }
-
     res.json(relayed);
   } catch (e) {
     if (e.block) {
       // leak-allow
       const body = { error: e.message, ...e.block };
       return res.status(e.statusCode || 403).json(body);
+    }
+
+    if (e.expose) {
+      // leak-allow
+      const body = { error: e.message, code: e.code };
+      return res.status(e.statusCode).json(body);
     }
 
     res.status(e.statusCode || 502).json(sanitizeError(e));

@@ -50,17 +50,23 @@ describe("a requestUrl call through IPC", () => {
 });
 
 describe("a failed requestUrl call through IPC", () => {
-  it("replies with the proxy's Error", async () => {
+  it("replies with the proxy's Error and code", async () => {
     vi.spyOn(console, "log").mockImplementation(() => {});
     window.__originalFetch = async () => ({
       ok: false,
-      json: async () => ({ error: "ECONNREFUSED" }),
+      json: async () => ({
+        error: "Upstream connection failed (ECONNREFUSED)",
+        code: "ECONNREFUSED",
+      }),
     });
 
     const reply = await requestUrl({ url: "https://api.example.test/item" });
 
     expect(reply.error).toBeInstanceOf(Error);
-    expect(reply.error.message).toBe("ECONNREFUSED");
+    expect(reply.error.message).toBe(
+      "Upstream connection failed (ECONNREFUSED)",
+    );
+    expect(reply.error.code).toBe("ECONNREFUSED");
   });
 });
 

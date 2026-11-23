@@ -1,6 +1,6 @@
 // Single round-trip through the server's /api/proxy endpoint for cross-origin requests.
 // Encodes a binary request body to base64, returns the upstream response with its body as an ArrayBuffer.
-// Throws an Error carrying the server's message on failure.
+// Throws an Error with the server's message and code.
 
 import { arrayBufferToBase64, base64ToArrayBuffer } from "./base64.js";
 import { isProxyBlock, reportProxyBlock } from "./proxy-block.js";
@@ -47,7 +47,13 @@ export async function proxyFetch({ url, method, headers, body, signal }) {
       reportProxyBlock(err);
     }
 
-    throw new Error(err.error || "Proxy request failed");
+    const error = new Error(err.error || "Proxy request failed");
+
+    if (err.code) {
+      error.code = err.code;
+    }
+
+    throw error;
   }
 
   const result = await res.json();

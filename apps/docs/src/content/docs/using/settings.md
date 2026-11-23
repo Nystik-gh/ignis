@@ -19,7 +19,7 @@ Cache changes take effect after a tab refresh.
 
 ### Security
 
-**Max request body** (default 50 MB) caps the largest request the server accepts.
+**Max request body** (default 50 MB) caps the largest request the server accepts. A reverse proxy in front of Ignis needs a body limit about a third larger than this setting, to account for the base64 encoding of uploads.
 
 **Proxy access** sets which external hosts a plugin may reach through the server's CORS proxy:
 

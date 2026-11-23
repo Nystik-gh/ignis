@@ -65,6 +65,24 @@ function redirectBecomesGet(status, method) {
   return (status === 301 || status === 302) && method === "POST";
 }
 
+function upstreamTooLarge() {
+  return httpError(413, "Upstream response too large", {
+    code: "upstream-too-large",
+    expose: true,
+  });
+}
+
+function connectionError(e) {
+  if (e.block || !e.code) {
+    return e;
+  }
+
+  return httpError(502, `Upstream connection failed (${e.code})`, {
+    code: e.code,
+    expose: true,
+  });
+}
+
 function requestOnce(targetUrl, method, headers, body) {
   return new Promise((resolve, reject) => {
     const mod = targetUrl.protocol === "https:" ? https : http;
@@ -83,7 +101,7 @@ function requestOnce(targetUrl, method, headers, body) {
       resolve,
     );
 
-    req.on("error", reject);
+    req.on("error", (e) => reject(connectionError(e)));
 
     if (hasBody) {
       req.write(body);
@@ -138,7 +156,10 @@ async function proxyRequest({ url, method, headers, body }) {
     current = next;
   }
 
-  throw httpError(508, "Too many redirects");
+  throw httpError(508, "Too many redirects", {
+    code: "too-many-redirects",
+    expose: true,
+  });
 }
 
 function readBody(res, maxBytes) {
@@ -182,7 +203,7 @@ function readBody(res, maxBytes) {
       total += chunk.length;
 
       if (total > maxBytes) {
-        fail(httpError(413, "Upstream response too large"));
+        fail(upstreamTooLarge());
         return;
       }
 
@@ -198,8 +219,18 @@ function readBody(res, maxBytes) {
       resolve(Buffer.concat(chunks));
     });
 
-    stream.on("error", (e) => fail(httpError(502, e.message)));
-    res.on("error", (e) => fail(httpError(502, e.message)));
+    if (decompressor) {
+      decompressor.on("error", () =>
+        fail(
+          httpError(502, "Could not decode the upstream response", {
+            code: "decode-failed",
+            expose: true,
+          }),
+        ),
+      );
+    }
+
+    res.on("error", (e) => fail(connectionError(e)));
   });
 }
 
@@ -209,7 +240,7 @@ async function relayOnce({ url, method, headers, body }) {
 
   if (Number.isFinite(declaredLength) && declaredLength > MAX_RESPONSE_BYTES) {
     upstream.destroy();
-    return { tooLarge: true };
+    throw upstreamTooLarge();
   }
 
   const respBody = await readBody(upstream, MAX_RESPONSE_BYTES);

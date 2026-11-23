@@ -1,8 +1,10 @@
+const { constants } = require("buffer");
 const express = require("express");
 const settings = require("./settings");
 
 const PROXY_PATH = /^\/api\/proxy\/*$/i;
 const PROXY_ENVELOPE_BYTES = 64 * 1024;
+const LONGEST_PARSEABLE_BODY = constants.MAX_STRING_LENGTH;
 
 const PROXY_BODY_TOO_LARGE = {
   error:
@@ -11,7 +13,9 @@ const PROXY_BODY_TOO_LARGE = {
 };
 
 function proxyEnvelopeBytes(bodyBytes) {
-  return Math.ceil((bodyBytes * 4) / 3) + PROXY_ENVELOPE_BYTES;
+  const envelope = Math.ceil((bodyBytes * 4) / 3) + PROXY_ENVELOPE_BYTES;
+
+  return Math.min(envelope, LONGEST_PARSEABLE_BODY);
 }
 
 function bodyLimits() {
@@ -54,4 +58,4 @@ function bodyLimits() {
   return [checkDeclaredLength, parseBody, answerProxyTooLarge];
 }
 
-module.exports = { bodyLimits, PROXY_BODY_TOO_LARGE };
+module.exports = { bodyLimits, proxyEnvelopeBytes, PROXY_BODY_TOO_LARGE };

@@ -12,7 +12,12 @@ process.env.DATA_ROOT = DATA_ROOT;
 
 const express = require("express");
 const settings = require("./settings");
-const { bodyLimits, PROXY_BODY_TOO_LARGE } = require("./body-limits");
+const { constants } = require("buffer");
+const {
+  bodyLimits,
+  proxyEnvelopeBytes,
+  PROXY_BODY_TOO_LARGE,
+} = require("./body-limits");
 
 const MAX = 300 * 1024;
 const BACKSTOP = 1000;
@@ -124,5 +129,13 @@ describe("the proxy JSON parser limit", () => {
 
     expect(res.status).toBe(413);
     expect(JSON.parse(res.body)).toEqual(PROXY_BODY_TOO_LARGE);
+  });
+});
+
+describe("the proxy envelope size", () => {
+  it("stops at the longest string the JSON parser can build", () => {
+    expect(proxyEnvelopeBytes(settings.MAX_BODY_BACKSTOP)).toBe(
+      constants.MAX_STRING_LENGTH,
+    );
   });
 });

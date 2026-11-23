@@ -12,50 +12,76 @@ const PROXY_BODY_TOO_LARGE = {
   code: "body-too-large",
 };
 
+const PLAIN_BODY_TOO_LARGE = { error: "Request body too large" };
+
 function proxyEnvelopeBytes(bodyBytes) {
   const envelope = Math.ceil((bodyBytes * 4) / 3) + PROXY_ENVELOPE_BYTES;
 
   return Math.min(envelope, LONGEST_PARSEABLE_BODY);
 }
 
+function cachedJsonParser() {
+  let cachedLimit = null;
+  let cachedParser = null;
+
+  return function parserFor(limit) {
+    if (limit !== cachedLimit) {
+      cachedLimit = limit;
+      cachedParser = express.json({ limit });
+    }
+
+    return cachedParser;
+  };
+}
+
 function bodyLimits() {
-  const parseJson = express.json({ limit: settings.MAX_BODY_BACKSTOP });
-  const parseProxyJson = express.json({
-    limit: proxyEnvelopeBytes(settings.MAX_BODY_BACKSTOP),
-  });
+  const jsonParserFor = cachedJsonParser();
+  const proxyJsonParserFor = cachedJsonParser();
+
+  function isProxy(req) {
+    return PROXY_PATH.test(req.path);
+  }
+
+  function limitFor(req) {
+    const maxBodyBytes = Math.min(
+      settings.get("maxBodyBytes"),
+      settings.MAX_BODY_BACKSTOP,
+    );
+
+    return isProxy(req) ? proxyEnvelopeBytes(maxBodyBytes) : maxBodyBytes;
+  }
+
+  function answerTooLarge(req, res) {
+    const body = isProxy(req) ? PROXY_BODY_TOO_LARGE : PLAIN_BODY_TOO_LARGE;
+
+    return res.status(413).json(body);
+  }
 
   function checkDeclaredLength(req, res, next) {
-    const isProxy = PROXY_PATH.test(req.path);
-    const maxBodyBytes = settings.get("maxBodyBytes");
-    const limit = isProxy ? proxyEnvelopeBytes(maxBodyBytes) : maxBodyBytes;
     const declared = Number(req.headers["content-length"]);
 
-    if (Number.isFinite(declared) && declared > limit) {
-      const body = isProxy
-        ? PROXY_BODY_TOO_LARGE
-        : { error: "Request body too large" };
-
-      return res.status(413).json(body);
+    if (Number.isFinite(declared) && declared > limitFor(req)) {
+      return answerTooLarge(req, res);
     }
 
     next();
   }
 
   function parseBody(req, res, next) {
-    const parse = PROXY_PATH.test(req.path) ? parseProxyJson : parseJson;
+    const parserFor = isProxy(req) ? proxyJsonParserFor : jsonParserFor;
 
-    parse(req, res, next);
+    parserFor(limitFor(req))(req, res, next);
   }
 
-  function answerProxyTooLarge(err, req, res, next) {
-    if (err.type === "entity.too.large" && PROXY_PATH.test(req.path)) {
-      return res.status(413).json(PROXY_BODY_TOO_LARGE);
+  function answerParsedTooLarge(err, req, res, next) {
+    if (err.type === "entity.too.large") {
+      return answerTooLarge(req, res);
     }
 
     next(err);
   }
 
-  return [checkDeclaredLength, parseBody, answerProxyTooLarge];
+  return [checkDeclaredLength, parseBody, answerParsedTooLarge];
 }
 
 module.exports = { bodyLimits, proxyEnvelopeBytes, PROXY_BODY_TOO_LARGE };

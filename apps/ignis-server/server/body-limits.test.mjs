@@ -4,6 +4,8 @@ import path from "path";
 import fs from "fs";
 import os from "os";
 import http from "http";
+import net from "net";
+import zlib from "zlib";
 
 const require = createRequire(import.meta.url);
 
@@ -20,16 +22,12 @@ const {
 } = require("./body-limits");
 
 const MAX = 300 * 1024;
-const BACKSTOP = 1000;
 
 const servers = [];
 
-async function start(backstop = settings.MAX_BODY_BACKSTOP) {
-  const realBackstop = settings.MAX_BODY_BACKSTOP;
-  settings.MAX_BODY_BACKSTOP = backstop;
+async function start() {
   const app = express();
   app.use(bodyLimits());
-  settings.MAX_BODY_BACKSTOP = realBackstop;
   app.post("/api/proxy", (req, res) => res.json({}));
   app.post("/api/other", (req, res) => res.json({}));
 
@@ -85,7 +83,7 @@ afterAll(() => {
   fs.rmSync(DATA_ROOT, { recursive: true, force: true });
 });
 
-describe("the declared-length check", () => {
+describe("a body with a declared size", () => {
   let base;
 
   beforeAll(async () => {
@@ -105,30 +103,127 @@ describe("the declared-length check", () => {
     expect(res.status).toBe(413);
     expect(await res.json()).toEqual({ error: "Request body too large" });
   });
+
+  it("answers before the oversized body has been sent", async () => {
+    const statusLine = await new Promise((resolve, reject) => {
+      const socket = net.connect(Number(new URL(base).port), "127.0.0.1");
+      let received = "";
+
+      socket.on("connect", () => {
+        socket.write(
+          "POST /api/proxy HTTP/1.1\r\nHost: 127.0.0.1\r\n" +
+            "Content-Type: application/json\r\n" +
+            `Content-Length: ${MAX * 10}\r\n\r\n{"pad":"`,
+        );
+      });
+      socket.on("data", (chunk) => {
+        received += chunk;
+        resolve(received.split("\r\n")[0]);
+        socket.destroy();
+      });
+      socket.on("error", reject);
+    });
+
+    expect(statusLine).toContain(" 413 ");
+  });
+
+  it("refuses an oversized body that is not JSON", async () => {
+    const res = await fetch(`${base}/api/other`, {
+      method: "POST",
+      headers: { "content-type": "text/plain" },
+      body: "x".repeat(MAX + 1),
+    });
+
+    expect(res.status).toBe(413);
+  });
 });
 
-describe("the proxy JSON parser limit", () => {
+describe("a body without a declared size", () => {
   let base;
 
   beforeAll(async () => {
-    base = await start(BACKSTOP);
+    base = await start();
   });
 
-  it("allows the proxy an envelope over the backstop", async () => {
+  it("lets a proxy envelope between the setting and the allowance through", async () => {
     const res = await postWithoutContentLength(base, "/api/proxy", {
-      pad: "x".repeat(BACKSTOP * 10),
+      pad: "x".repeat(MAX * 1.2),
     });
 
     expect(res.status).toBe(200);
   });
 
-  it("answers an envelope over the proxy parser limit with the readable 413", async () => {
+  it("answers a proxy envelope over the allowance with the readable 413", async () => {
     const res = await postWithoutContentLength(base, "/api/proxy", {
-      pad: "x".repeat(BACKSTOP * 100),
+      pad: "x".repeat(MAX * 2),
     });
 
     expect(res.status).toBe(413);
     expect(JSON.parse(res.body)).toEqual(PROXY_BODY_TOO_LARGE);
+  });
+
+  it("answers another route's body over the setting with the plain 413", async () => {
+    const res = await postWithoutContentLength(base, "/api/other", {
+      pad: "x".repeat(MAX + 1),
+    });
+
+    expect(res.status).toBe(413);
+    expect(JSON.parse(res.body)).toEqual({ error: "Request body too large" });
+  });
+
+  it("follows a change to the setting without a restart", async () => {
+    const payload = { pad: "x".repeat(MAX + 1) };
+
+    expect(
+      (await postWithoutContentLength(base, "/api/other", payload)).status,
+    ).toBe(413);
+
+    settings.update({ maxBodyBytes: MAX * 2 });
+
+    expect(
+      (await postWithoutContentLength(base, "/api/other", payload)).status,
+    ).toBe(200);
+  });
+
+  it("never reads past the backstop, whatever the setting", async () => {
+    const realBackstop = settings.MAX_BODY_BACKSTOP;
+    settings.MAX_BODY_BACKSTOP = 1000;
+
+    try {
+      const res = await postWithoutContentLength(base, "/api/other", {
+        pad: "x".repeat(2000),
+      });
+
+      expect(res.status).toBe(413);
+    } finally {
+      settings.MAX_BODY_BACKSTOP = realBackstop;
+    }
+  });
+});
+
+describe("a compressed body", () => {
+  let base;
+
+  beforeAll(async () => {
+    base = await start();
+  });
+
+  it("answers a proxy body that inflates past the allowance with the readable 413", async () => {
+    const compressed = zlib.gzipSync(
+      JSON.stringify({ pad: "x".repeat(MAX * 2) }),
+    );
+    const res = await fetch(`${base}/api/proxy`, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "content-encoding": "gzip",
+      },
+      body: compressed,
+    });
+
+    expect(compressed.length).toBeLessThan(MAX);
+    expect(res.status).toBe(413);
+    expect(await res.json()).toEqual(PROXY_BODY_TOO_LARGE);
   });
 });
 

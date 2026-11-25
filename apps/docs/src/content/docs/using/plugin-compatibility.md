@@ -11,6 +11,7 @@ A plugin will not work if it needs any of these:
 
 - **An external program.** Launched through Node's `child_process`.
 - **A raw network socket.** Opened through Node's `net`.
+- **A local server.** Started through Node's `http.createServer`.
 - **A native module.** Loaded from a compiled `.node` binary.
 
 Compatibility for specific community plugins is tracked in [issue #9](https://github.com/Nystik-gh/ignis/issues/9).

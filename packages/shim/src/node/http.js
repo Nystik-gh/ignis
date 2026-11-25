@@ -1,54 +1,99 @@
-// Minimal http/https stub. Plugins needing full http.request won't work,
-// but this prevents crashes for plugins that just import the module.
+import { ClientRequest } from "./http/client-request.js";
+import { IncomingMessage } from "./http/incoming-message.js";
+import { STATUS_CODES } from "./http/status-codes.js";
 
-import { EventEmitter } from "./events.js";
+function urlFromOptions(options) {
+  const host = options.hostname || options.host || "localhost";
+  const bracketedHost =
+    host.includes(":") && !host.startsWith("[") ? `[${host}]` : host;
+  const port = options.port ? `:${options.port}` : "";
 
-export class IncomingMessage extends EventEmitter {
-  constructor() {
-    super();
-    this.headers = {};
-    this.statusCode = 0;
-  }
+  return new URL(
+    `${options.protocol}//${bracketedHost}${port}${options.path || "/"}`,
+  );
 }
 
-export class ClientRequest extends EventEmitter {
-  constructor() {
-    super();
-  }
+function optionsFromUrl(url) {
+  const hasCredentials = url.username !== "" || url.password !== "";
 
-  end() {}
-  write() {}
-  abort() {}
-  destroy() {}
+  return {
+    protocol: url.protocol,
+    hostname: url.hostname,
+    port: url.port,
+    path: url.pathname + url.search,
+    auth: hasCredentials
+      ? `${decodeURIComponent(url.username)}:${decodeURIComponent(url.password)}`
+      : undefined,
+  };
 }
 
-export function request(options, callback) {
-  const req = new ClientRequest();
+function createRequest(defaultProtocol, input, options, callback) {
+  if (typeof options === "function") {
+    callback = options;
+    options = undefined;
+  }
+
+  const merged =
+    typeof input === "string" || input instanceof URL
+      ? { ...optionsFromUrl(new URL(input)), ...options }
+      : { ...input };
+  const protocol = merged.protocol || defaultProtocol;
+
+  if (protocol !== defaultProtocol) {
+    const error = new TypeError(
+      `Protocol "${protocol}" not supported. Expected "${defaultProtocol}"`,
+    );
+    error.code = "ERR_INVALID_PROTOCOL";
+    throw error;
+  }
+
+  const req = new ClientRequest(
+    urlFromOptions({ ...merged, protocol }),
+    merged,
+  );
+
   if (callback) {
     req.once("response", callback);
   }
 
-  // Immediately error. real HTTP requests need fetch or the proxy
-  setTimeout(() => {
-    req.emit(
-      "error",
-      new Error(
-        "http.request is not available in the web version. Use requestUrl() instead.",
-      ),
-    );
-  }, 0);
   return req;
 }
 
-export function get(options, callback) {
-  const req = request(options, callback);
-  req.end();
-  return req;
+class Agent {
+  constructor(options) {
+    this.options = options || {};
+  }
+
+  destroy() {}
 }
 
-export function createServer() {
+function createServer() {
   throw new Error("http.createServer is not available in the web version.");
 }
 
-export const Agent = class {};
-export const globalAgent = new Agent();
+function createHttpModule(protocol) {
+  function request(input, options, callback) {
+    return createRequest(protocol, input, options, callback);
+  }
+
+  function get(input, options, callback) {
+    const req = request(input, options, callback);
+    req.end();
+
+    return req;
+  }
+
+  return {
+    request,
+    get,
+    createServer,
+    ClientRequest,
+    IncomingMessage,
+    Agent,
+    globalAgent: new Agent(),
+    STATUS_CODES,
+  };
+}
+
+export const http = createHttpModule("http:");
+export const https = createHttpModule("https:");

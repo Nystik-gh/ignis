@@ -10,7 +10,7 @@ import { EventEmitter } from "./node/events.js";
 import * as osShim from "./node/os.js";
 import * as netShim from "./node/net.js";
 import * as ttyShim from "./node/tty.js";
-import * as httpShim from "./node/http.js";
+import { http as httpShim, https as httpsShim } from "./node/http.js";
 import * as zlibShim from "./node/zlib.js";
 import * as utilShim from "./node/util.js";
 import { constantsShim } from "./node/constants.js";
@@ -38,7 +38,7 @@ const rawRegistry = {
   net: netShim,
   tty: ttyShim,
   http: httpShim,
-  https: httpShim,
+  https: httpsShim,
   zlib: zlibShim,
   util: utilShim,
   constants: constantsShim,

@@ -70,7 +70,7 @@ Immediately after the bootstrap response is applied, the client prefetches file 
 | `worker_threads`     | `Worker` throws; `isMainThread` is true.                                                        |
 | `module`             | `createRequire()` returns the shim's `require`; `builtinModules` lists the shimmed modules.     |
 | `http` / `https`     | Module is importable but `request()`/`get()` emit an `error` event; `createServer` throws. Plugins should use `requestUrl` or `fetch` (the shim routes cross-origin `fetch` through the server proxy). |
-| `buffer`             | Aliased to the browser `Buffer` polyfill set up by the loader. `from` and `toString` cover utf-8, latin1/ascii/binary, base64, and hex; an unrecognized encoding warns once and falls back to utf-8.                                  |
+| `buffer`             | The `buffer` npm package, also installed as `window.Buffer`. |
 | `assert`             | Standard assertions: `assert`, `equal`, `strictEqual`, `deepEqual`, `throws`. |
 | `constants`          | File access and mode constants (`F_OK`, `O_RDONLY`, `S_IFMT`, etc.) for the reported Linux platform. |
 | `stream`             | Base classes (`Stream`, `Readable`, `Writable`, `Duplex`, `Transform`, `PassThrough`) extending EventEmitter. Data-flow methods warn and do nothing. |

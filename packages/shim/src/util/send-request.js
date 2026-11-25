@@ -5,15 +5,23 @@ import { proxyFetch } from "./proxy.js";
 import { desktopHeaders } from "./desktop-identity.js";
 import { hasHeader } from "./headers.js";
 
-async function fetchDirect({ url, method, headers, body }) {
-  const nativeFetch = window.__originalFetch || fetch;
-  const res = await nativeFetch(url, { method, headers, body });
+function isDirectRoute(url) {
+  return isSameOrigin(url) || isDirectFetchHost(url);
+}
 
-  return {
-    status: res.status,
-    headers: Object.fromEntries(res.headers),
-    body: await res.arrayBuffer(),
-  };
+function fetchDirect({ url, method, headers, body, signal }) {
+  const nativeFetch = window.__originalFetch || fetch;
+
+  return nativeFetch(url, { method, headers, body, signal });
+}
+
+function singleChunkStream(buffer) {
+  return new ReadableStream({
+    start(controller) {
+      controller.enqueue(new Uint8Array(buffer));
+      controller.close();
+    },
+  });
 }
 
 export async function sendRequest({ url, method, headers, body, contentType }) {
@@ -23,7 +31,7 @@ export async function sendRequest({ url, method, headers, body, contentType }) {
     requestHeaders["Content-Type"] = contentType;
   }
 
-  const isDirect = isSameOrigin(url) || isDirectFetchHost(url);
+  const isDirect = isDirectRoute(url);
 
   if (!isDirect && !hasHeader(requestHeaders, "user-agent")) {
     requestHeaders["user-agent"] = desktopHeaders()["user-agent"];
@@ -36,5 +44,48 @@ export async function sendRequest({ url, method, headers, body, contentType }) {
     body,
   };
 
-  return isDirect ? fetchDirect(request) : proxyFetch(request);
+  if (!isDirect) {
+    return proxyFetch(request);
+  }
+
+  const res = await fetchDirect(request);
+
+  return {
+    status: res.status,
+    headers: Object.fromEntries(res.headers),
+    body: await res.arrayBuffer(),
+  };
+}
+
+export async function sendStreamingRequest({
+  url,
+  method,
+  headers,
+  body,
+  signal,
+}) {
+  const request = {
+    url,
+    method: method || "GET",
+    headers: headers || {},
+    body,
+    signal,
+  };
+
+  if (!isDirectRoute(url)) {
+    const result = await proxyFetch(request);
+
+    return { ...result, body: singleChunkStream(result.body) };
+  }
+
+  const res = await fetchDirect(request);
+  const responseHeaders = Object.fromEntries(res.headers);
+
+  // strip encoding headers to avoid decoding twice.
+  if (responseHeaders["content-encoding"]) {
+    delete responseHeaders["content-encoding"];
+    delete responseHeaders["content-length"];
+  }
+
+  return { status: res.status, headers: responseHeaders, body: res.body };
 }

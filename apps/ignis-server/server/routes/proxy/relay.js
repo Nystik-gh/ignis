@@ -15,6 +15,7 @@ const MAX_REDIRECTS = 5;
 const REDIRECT_CODES = new Set([301, 302, 303, 307, 308]);
 const FRAMING_HEADERS = new Set(["content-length", "transfer-encoding"]);
 const CREDENTIAL_HEADERS = new Set(["authorization", "cookie"]);
+const HOST_HEADER = new Set(["host"]);
 const REQUEST_BODY_HEADERS = new Set([
   "content-type",
   "content-encoding",
@@ -180,6 +181,8 @@ async function proxyRequest({
 
     res.resume();
     const next = new URL(res.headers.location, current);
+
+    currentHeaders = withoutHeaders(currentHeaders, HOST_HEADER);
 
     // The caller did not choose the redirect target, so credentials do not cross origins.
     if (!sameOrigin(current, next)) {

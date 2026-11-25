@@ -168,7 +168,10 @@ describe("a redirected request", () => {
             cookie: req.headers["cookie"] ?? null,
           };
 
-          res.writeHead(200, { "X-Arrived": JSON.stringify(arrived) });
+          res.writeHead(200, {
+            "X-Arrived": JSON.stringify(arrived),
+            "X-Arrived-Host": req.headers["host"],
+          });
           res.end();
         });
       });
@@ -259,6 +262,18 @@ describe("a redirected request", () => {
     expect(arrived.authorization).toBeNull();
     expect(arrived.cookie).toBeNull();
     expect(arrived.body).toBe("payload");
+  });
+
+  it("sends the redirect target its own Host, not the one the caller set", async () => {
+    const res = await proxyRequest({
+      url: `${origin(elsewhere)}/redirect/302`,
+      method: "GET",
+      headers: { Host: new URL(origin(elsewhere)).host },
+    });
+
+    res.resume();
+
+    expect(res.headers["x-arrived-host"]).toBe(new URL(origin(target)).host);
   });
 });
 

@@ -1,7 +1,7 @@
-// Sends a requestUrl-style request. Either through server proxy, or directly for same-origin and direct-fetch hosts.
+// Sends requests through the server proxy, or directly for same-origin and direct-fetch hosts.
 
 import { isSameOrigin, isDirectFetchHost } from "./url.js";
-import { proxyFetch } from "./proxy.js";
+import { proxyFetch, openProxyStream } from "./proxy.js";
 import { desktopHeaders } from "./desktop-identity.js";
 import { hasHeader } from "./headers.js";
 
@@ -13,15 +13,6 @@ function fetchDirect({ url, method, headers, body, signal }) {
   const nativeFetch = window.__originalFetch || fetch;
 
   return nativeFetch(url, { method, headers, body, signal });
-}
-
-function singleChunkStream(buffer) {
-  return new ReadableStream({
-    start(controller) {
-      controller.enqueue(new Uint8Array(buffer));
-      controller.close();
-    },
-  });
 }
 
 export async function sendRequest({ url, method, headers, body, contentType }) {
@@ -73,9 +64,7 @@ export async function sendStreamingRequest({
   };
 
   if (!isDirectRoute(url)) {
-    const result = await proxyFetch(request);
-
-    return { ...result, body: singleChunkStream(result.body) };
+    return openProxyStream(request);
   }
 
   const res = await fetchDirect(request);

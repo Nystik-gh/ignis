@@ -1,5 +1,5 @@
 import { isSameOrigin, isDirectFetchHost } from "../util/url.js";
-import { proxyFetch } from "../util/proxy.js";
+import { openProxyStream } from "../util/proxy.js";
 import { desktopHeaders } from "../util/desktop-identity.js";
 import { hasHeader } from "../util/headers.js";
 
@@ -34,11 +34,17 @@ async function readRequestBody(request, initBody) {
 }
 
 function toResponse({ status, headers, body }, method) {
-  if (status < 200 || status > 599) {
-    throw new TypeError(`Upstream answered with status ${status}`);
+  const isStatusInRange = status >= 200 && status <= 599;
+  const hasNullBody = method === "HEAD" || NULL_BODY_STATUSES.has(status);
+  const isBodyDiscarded = !isStatusInRange || hasNullBody;
+
+  if (isBodyDiscarded) {
+    body.cancel().catch(() => {});
   }
 
-  const hasNullBody = method === "HEAD" || NULL_BODY_STATUSES.has(status);
+  if (!isStatusInRange) {
+    throw new TypeError(`Upstream answered with status ${status}`);
+  }
 
   return new Response(hasNullBody ? null : body, { status, headers });
 }
@@ -113,7 +119,7 @@ export function installFetchShim() {
         method,
         redactUrl(url),
       );
-      result = await proxyFetch({ url, method, headers, body, signal });
+      result = await openProxyStream({ url, method, headers, body, signal });
     } catch (e) {
       if (signal.aborted) {
         throw signal.reason;

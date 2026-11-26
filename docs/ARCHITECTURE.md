@@ -69,7 +69,7 @@ Immediately after the bootstrap response is applied, the client prefetches file 
 | `tty`                | `isatty()` returns false; the stream constructors throw.                                        |
 | `worker_threads`     | `Worker` throws; `isMainThread` is true.                                                        |
 | `module`             | `createRequire()` returns the shim's `require`; `builtinModules` lists the shimmed modules.     |
-| `http` / `https`     | Module is importable but `request()`/`get()` emit an `error` event; `createServer` throws. Plugins should use `requestUrl` or `fetch` (the shim routes cross-origin `fetch` through the server proxy). |
+| `http` / `https`     | `request()` and `get()` are routed like `fetch`; `createServer` throws. |
 | `buffer`             | The `buffer` npm package, also installed as `window.Buffer`. |
 | `assert`             | Standard assertions: `assert`, `equal`, `strictEqual`, `deepEqual`, `throws`. |
 | `constants`          | File access and mode constants (`F_OK`, `O_RDONLY`, `S_IFMT`, etc.) for the reported Linux platform. |
@@ -111,7 +111,7 @@ Sync channels covered include `vault`, `version`, `vault-list`, `vault-open`, `v
 
 Obsidian on the desktop can make arbitrary cross-origin HTTP requests because it runs as an Electron app rather than a sandboxed browser context. In a browser tab, the same requests would be blocked by CORS or rejected by the same-origin policy. Plugin installs from GitHub, theme asset downloads, calls to third-party APIs: all of it assumes cross-origin is available.
 
-The shim handles this transparently. `window.fetch` and `requestUrl` are intercepted. Same-origin requests pass through unchanged, as do requests to hosts on the user-configured direct-fetch allowlist, which the browser fetches directly subject to its own CORS enforcement. All other cross-origin requests are POSTed to `/api/proxy`, which performs the outbound call from the server with headers that mimic Obsidian's desktop runtime: `Origin: app://obsidian.md` and Obsidian's desktop User-Agent. The response body is returned base64-encoded so binary content survives the JSON round-trip; the shim decodes it and hands the caller a normal `Response` or `requestUrl` result.
+The shim handles this transparently. `window.fetch` and `requestUrl` are intercepted. Same-origin requests pass through unchanged, as do requests to hosts on the user-configured direct-fetch allowlist, which the browser fetches directly subject to its own CORS enforcement. All other cross-origin requests are POSTed to `/api/proxy`, which performs the outbound call from the server with headers that mimic Obsidian's desktop runtime: `Origin: app://obsidian.md` and Obsidian's desktop User-Agent. The `http` and `https` modules send their requests the same way. `fetch` and the `http` modules receive the response body as a stream, as sent by the upstream server. `requestUrl` receives the full response, base64-encoded to preserve binary content through the JSON encoding and decoding.
 
 The proxy itself is intentionally generic. It forwards method, headers, and body verbatim and returns whatever the upstream sent. It rejects requests whose hostname resolves to a private, loopback, or link-local address (SSRF guard) unless that address is listed in `PROXY_ALLOW_PRIVATE_HOSTS`. Redirects are followed on the server one hop at a time so every hop passes the same check. Outbound access is governed by `proxyMode`: `any` (the default) reaches any public host, `allowlist` restricts to a configured host list, and `disabled` blocks all proxying. Under the default `any`, the proxy is an open relay to public hosts, which is one of the reasons the server needs to be behind authentication when exposed to the internet.
 
@@ -151,7 +151,7 @@ An Express server that handles filesystem operations, vault management, static f
 - `/api/fs/*` - filesystem operations (read, write, stat, tree, mkdir, batch-read, download, download-zip, etc.). `/tree` returns the whole vault's metadata tree from the bootstrap cache with an ETag, answering 304 on `If-None-Match`.
 - `/api/vault/*` - vault CRUD, config, and manual refresh.
 - `/api/bootstrap` - one-shot cold-start endpoint; returns vault info + list + metadata tree + plugin list as a single pre-compressed response, cached per vault, kept current by watcher and route events, and rebuilt in the background when found stale.
-- `/api/proxy` - cross-origin HTTP proxy used by the fetch and requestUrl shims.
+- `/api/proxy` - cross-origin HTTP proxy used by the fetch, requestUrl, and http shims.
 - `/api/version` - Ignis version (SemVer), per-build identifier, and pinned Obsidian version.
 - `/api/settings/*` - read and update the runtime server settings, the ones in Ignis's settings tabs.
 - `/api/plugins/*` - Ignis plugin management (list, enable, disable). __WIP__

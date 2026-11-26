@@ -38,14 +38,11 @@ afterEach(() => {
 });
 
 function proxyReply(status, headers, body) {
-  return new Response(
-    JSON.stringify({
-      status,
-      headers,
-      body: Buffer.from(body).toString("base64"),
-    }),
-    { status: 200 },
-  );
+  const preamble = Buffer.from(JSON.stringify({ status, headers }));
+  const length = Buffer.alloc(4);
+  length.writeUInt32BE(preamble.length);
+
+  return new Response(Buffer.concat([length, preamble, Buffer.from(body)]));
 }
 
 function streamedReply(chunks, gapMs = 0, { signal, ...init } = {}) {

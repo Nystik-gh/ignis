@@ -7,8 +7,12 @@ const BROWSER_UA =
 
 const realNavigator = Object.getOwnPropertyDescriptor(globalThis, "navigator");
 
-function proxyAnswer(result) {
-  return { ok: true, json: async () => result };
+function proxyAnswer({ status, headers, body }) {
+  const preamble = Buffer.from(JSON.stringify({ status, headers }));
+  const length = Buffer.alloc(4);
+  length.writeUInt32BE(preamble.length);
+
+  return new Response(Buffer.concat([length, preamble, Buffer.from(body)]));
 }
 
 function install(
@@ -230,6 +234,80 @@ describe("relayed responses", () => {
 
     expect(res.status).toBe(status);
     expect(res.body).toBeNull();
+  });
+});
+
+describe("a relayed response body", () => {
+  afterEach(restoreGlobals);
+
+  function framedThen(status, nextChunk) {
+    const framing = proxyAnswer({ status, headers: {}, body: "" }).body;
+    const cancel = vi.fn();
+    let sentFraming = false;
+
+    const stream = new ReadableStream({
+      async pull(controller) {
+        if (!sentFraming) {
+          sentFraming = true;
+          const { value } = await framing.getReader().read();
+          controller.enqueue(value);
+          return;
+        }
+
+        const chunk = await nextChunk();
+
+        if (chunk === null) {
+          controller.close();
+        } else {
+          controller.enqueue(new TextEncoder().encode(chunk));
+        }
+      },
+      cancel,
+    });
+
+    return { response: new Response(stream), cancel };
+  }
+
+  it("arrives as the proxy sends it", async () => {
+    let sendSecond;
+    const second = new Promise((resolve) => (sendSecond = resolve));
+    const chunks = [Promise.resolve("first"), second, Promise.resolve(null)];
+    const { response } = framedThen(200, () => chunks.shift());
+    install(() => response);
+
+    const res = await window.fetch("https://example.test/events");
+    const reader = res.body.getReader();
+    const first = await reader.read();
+
+    expect(new TextDecoder().decode(first.value)).toBe("first");
+
+    sendSecond("second");
+    const rest = await reader.read();
+
+    expect(new TextDecoder().decode(rest.value)).toBe("second");
+    expect((await reader.read()).done).toBe(true);
+  });
+
+  it("is cancelled at the proxy behind a HEAD", async () => {
+    const { response, cancel } = framedThen(200, () => new Promise(() => {}));
+    install(() => response);
+
+    const res = await window.fetch("https://example.test/item", {
+      method: "HEAD",
+    });
+
+    expect(res.body).toBeNull();
+    expect(cancel).toHaveBeenCalledOnce();
+  });
+
+  it("is cancelled at the proxy behind an out-of-range status", async () => {
+    const { response, cancel } = framedThen(999, () => new Promise(() => {}));
+    install(() => response);
+
+    await expect(window.fetch("https://example.test/item")).rejects.toThrow(
+      "Upstream answered with status 999",
+    );
+    expect(cancel).toHaveBeenCalledOnce();
   });
 });
 

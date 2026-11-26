@@ -4,6 +4,7 @@ import path from "path";
 import fs from "fs";
 import os from "os";
 import http from "http";
+import zlib from "zlib";
 
 const require = createRequire(import.meta.url);
 
@@ -18,6 +19,7 @@ const settings = require("../../settings");
 const proxyRouter = require("./index");
 const { bodyLimits } = require("../../body-limits");
 const express = require("express");
+const compression = require("compression");
 
 const realLookup = dns.promises.lookup;
 
@@ -31,6 +33,7 @@ let onHangingRequest;
 beforeAll(async () => {
   const app = express();
   app.use(bodyLimits());
+  app.use(compression());
   app.use("/api/proxy", proxyRouter);
 
   await new Promise((resolve) => {
@@ -47,6 +50,78 @@ beforeAll(async () => {
 
     if (req.url === "/slow") {
       setTimeout(() => res.end("done"), 200);
+      return;
+    }
+
+    if (req.url === "/sse") {
+      res.writeHead(200, { "Content-Type": "text/event-stream" });
+      res.write("data: first\n\n");
+      setTimeout(() => res.end("data: second\n\n"), 300);
+      return;
+    }
+
+    if (req.url === "/unsized") {
+      const block = Buffer.alloc(1024 * 1024, 0x61);
+      let sent = 0;
+      res.writeHead(200);
+
+      const pump = () => {
+        while (sent < UNSIZED_MB) {
+          sent++;
+
+          if (!res.write(block)) {
+            res.once("drain", pump);
+            return;
+          }
+        }
+
+        res.end();
+      };
+
+      pump();
+      return;
+    }
+
+    if (req.url === "/gzip" || req.url === "/br") {
+      const encoding = req.url.slice(1);
+      const encoded =
+        encoding === "gzip"
+          ? zlib.gzipSync("hello gzip")
+          : zlib.brotliCompressSync("hello br");
+
+      res.writeHead(200, {
+        "Content-Encoding": encoding,
+        "Content-Length": encoded.length,
+      });
+      res.end(encoded);
+      return;
+    }
+
+    if (req.url === "/reset") {
+      res.writeHead(200);
+      res.write("partial", () => setTimeout(() => res.socket.destroy(), 50));
+      return;
+    }
+
+    if (req.url === "/gzip-204" || req.url === "/gzip-304") {
+      res.writeHead(Number(req.url.slice(-3)), { "Content-Encoding": "gzip" });
+      res.end();
+      return;
+    }
+
+    if (req.url === "/headers") {
+      res.writeHead(200, {
+        "Set-Cookie": "sid=upstream; Path=/",
+        "X-Owner": "café",
+      });
+      res.end("after the headers");
+      return;
+    }
+
+    if (req.url === "/first-chunk-then-hang") {
+      res.writeHead(200);
+      res.write("a");
+      onHangingRequest(req);
       return;
     }
 
@@ -102,6 +177,52 @@ const post = (route, payload) =>
   });
 
 const proxy = (url) => post("/api/proxy/", { url });
+
+const UNSIZED_MB = 60;
+
+async function readStream(res, { keepBody = true } = {}) {
+  const start = Date.now();
+  const reader = res.body.getReader();
+  let pending = Buffer.alloc(0);
+  let preamble = null;
+  const chunks = [];
+  let bodyBytes = 0;
+
+  while (true) {
+    const { done, value } = await reader.read();
+
+    if (done) {
+      break;
+    }
+
+    let bytes = Buffer.from(value);
+
+    if (!preamble) {
+      pending = Buffer.concat([pending, bytes]);
+
+      if (pending.length < 4 || pending.length < 4 + pending.readUInt32BE(0)) {
+        continue;
+      }
+
+      const length = pending.readUInt32BE(0);
+      preamble = JSON.parse(pending.subarray(4, 4 + length).toString());
+      bytes = pending.subarray(4 + length);
+    }
+
+    if (bytes.length > 0) {
+      bodyBytes += bytes.length;
+
+      if (keepBody) {
+        chunks.push({ at: Date.now() - start, text: bytes.toString() });
+      }
+    }
+  }
+
+  return { preamble, chunks, bodyBytes };
+}
+
+const streamProxy = (url, extra = {}) =>
+  post("/api/proxy/", { url, stream: true, ...extra });
 
 describe("proxy guard responses", () => {
   it("rejects a private IP literal with a private-host block body", async () => {
@@ -274,6 +395,128 @@ describe("a client that aborts its proxy call", () => {
     abort.abort();
 
     await expect(call).rejects.toThrow();
+    await closed;
+  });
+});
+
+describe("the stream mode", () => {
+  it("answers a guard refusal exactly as the envelope does", async () => {
+    const envelope = await proxy("http://10.9.9.9/x");
+    const streamed = await streamProxy("http://10.9.9.9/x");
+
+    expect(streamed.status).toBe(envelope.status);
+    expect(await streamed.json()).toEqual(await envelope.json());
+  });
+
+  it("delivers each upstream chunk as it arrives, under its own response headers", async () => {
+    const res = await streamProxy(`${upstreamBase}/sse`);
+    const { preamble, chunks } = await readStream(res);
+
+    expect(res.headers.get("content-type")).toBe("application/octet-stream");
+    expect(res.headers.get("x-content-type-options")).toBe("nosniff");
+    expect(res.headers.get("cache-control")).toBe("no-store, no-transform");
+    expect(res.headers.get("x-accel-buffering")).toBe("no");
+    expect(res.headers.get("content-encoding")).toBeNull();
+    expect(preamble.status).toBe(200);
+    expect(preamble.headers["content-type"]).toBe("text/event-stream");
+    expect(chunks.map((c) => c.text)).toEqual([
+      "data: first\n\n",
+      "data: second\n\n",
+    ]);
+    expect(chunks[0].at).toBeLessThan(200);
+    expect(chunks[1].at).toBeGreaterThanOrEqual(250);
+  });
+
+  it("carries a body past the envelope's cap with no declared length", async () => {
+    const streamed = await readStream(
+      await streamProxy(`${upstreamBase}/unsized`),
+      {
+        keepBody: false,
+      },
+    );
+    const envelope = await proxy(`${upstreamBase}/unsized`);
+
+    expect(streamed.bodyBytes).toBe(UNSIZED_MB * 1024 * 1024);
+    expect(envelope.status).toBe(413);
+    expect((await envelope.json()).code).toBe("upstream-too-large");
+  });
+
+  it("decodes gzip and br bodies and drops their encoding headers", async () => {
+    for (const encoding of ["gzip", "br"]) {
+      const { preamble, chunks } = await readStream(
+        await streamProxy(`${upstreamBase}/${encoding}`),
+      );
+
+      expect(chunks.map((c) => c.text).join("")).toBe(`hello ${encoding}`);
+      expect(preamble.headers["content-encoding"]).toBeUndefined();
+      expect(preamble.headers["content-length"]).toBeUndefined();
+    }
+  });
+
+  it("breaks off the response when the upstream fails midway", async () => {
+    const res = await streamProxy(`${upstreamBase}/reset`);
+
+    await expect(readStream(res)).rejects.toThrow();
+  });
+
+  it("gives a bodiless response its preamble and nothing else, whatever encoding it names", async () => {
+    const cases = [
+      ["HEAD", "/gzip", 200],
+      ["GET", "/gzip-204", 204],
+      ["GET", "/gzip-304", 304],
+    ];
+
+    for (const [method, route, status] of cases) {
+      const streamed = await readStream(
+        await streamProxy(`${upstreamBase}${route}`, { method }),
+      );
+      const envelope = await post("/api/proxy/", {
+        url: `${upstreamBase}${route}`,
+        method,
+      });
+
+      expect([route, streamed.preamble.status, streamed.bodyBytes]).toEqual([
+        route,
+        status,
+        0,
+      ]);
+      expect([route, (await envelope.json()).status]).toEqual([route, status]);
+    }
+  });
+
+  it("keeps upstream headers inside the preamble, whatever characters they hold", async () => {
+    const res = await streamProxy(`${upstreamBase}/headers`);
+    const { preamble, chunks } = await readStream(res);
+
+    expect(res.headers.get("set-cookie")).toBeNull();
+    expect(preamble.headers["set-cookie"]).toEqual(["sid=upstream; Path=/"]);
+    expect(preamble.headers["x-owner"]).toBe("café");
+    expect(chunks.map((c) => c.text).join("")).toBe("after the headers");
+  });
+
+  it("closes the upstream connection when the client disconnects mid-stream", async () => {
+    const abort = new AbortController();
+    const arrived = new Promise((resolve) => {
+      onHangingRequest = resolve;
+    });
+    const res = await fetch(`${base}/api/proxy`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        url: `${upstreamBase}/first-chunk-then-hang`,
+        stream: true,
+      }),
+      signal: abort.signal,
+    });
+
+    expect(res.status).toBe(200);
+
+    const upstreamRequest = await arrived;
+    const closed = new Promise((resolve) =>
+      upstreamRequest.socket.on("close", resolve),
+    );
+    abort.abort();
+
     await closed;
   });
 });

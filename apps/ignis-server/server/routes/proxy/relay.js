@@ -204,19 +204,56 @@ async function proxyRequest({
   });
 }
 
+function createBodyDecompressor(res) {
+  const isBodiless =
+    res.req.method === "HEAD" ||
+    res.statusCode === 204 ||
+    res.statusCode === 304;
+
+  if (isBodiless) {
+    return null;
+  }
+
+  const encoding = (res.headers["content-encoding"] || "").toLowerCase();
+
+  if (encoding === "gzip" || encoding === "x-gzip") {
+    return zlib.createGunzip();
+  }
+
+  if (encoding === "deflate") {
+    return zlib.createInflate();
+  }
+
+  if (encoding === "br") {
+    return zlib.createBrotliDecompress();
+  }
+
+  return null;
+}
+
+function relayedHeaders(res) {
+  // Strip hop-by-hop and encoding headers; the body is already decompressed.
+  const skipHeaders = new Set([
+    "content-encoding",
+    "transfer-encoding",
+    "content-length",
+    "connection",
+  ]);
+  const headers = {};
+
+  for (const [key, val] of Object.entries(res.headers)) {
+    if (!skipHeaders.has(key.toLowerCase())) {
+      headers[key] = val;
+    }
+  }
+
+  return headers;
+}
+
 function readBody(res, maxBytes) {
   return new Promise((resolve, reject) => {
-    const encoding = (res.headers["content-encoding"] || "").toLowerCase();
     let stream = res;
-    let decompressor = null;
-
-    if (encoding === "gzip" || encoding === "x-gzip") {
-      decompressor = zlib.createGunzip();
-    } else if (encoding === "deflate") {
-      decompressor = zlib.createInflate();
-    } else if (encoding === "br") {
-      decompressor = zlib.createBrotliDecompress();
-    }
+    const decompressor = createBodyDecompressor(res);
 
     if (decompressor) {
       stream = res.pipe(decompressor);
@@ -301,30 +338,27 @@ async function relayOnce({
 
   const respBody = await readBody(upstream, MAX_RESPONSE_BYTES);
 
-  // Strip hop-by-hop and encoding headers; the body is already decompressed.
-  const skipHeaders = new Set([
-    "content-encoding",
-    "transfer-encoding",
-    "content-length",
-    "connection",
-  ]);
-  const respHeaders = {};
+  return {
+    status: upstream.statusCode,
+    headers: relayedHeaders(upstream),
+    body: respBody.toString("base64"),
+  };
+}
 
-  for (const [key, val] of Object.entries(upstream.headers)) {
-    if (!skipHeaders.has(key.toLowerCase())) {
-      respHeaders[key] = val;
-    }
-  }
+async function openRelayStream(args) {
+  const upstream = await proxyRequest(args);
+  const decompressor = createBodyDecompressor(upstream);
 
   return {
     status: upstream.statusCode,
-    headers: respHeaders,
-    body: respBody.toString("base64"),
+    headers: relayedHeaders(upstream),
+    bodyStreams: decompressor ? [upstream, decompressor] : [upstream],
   };
 }
 
 module.exports = {
   relayOnce,
+  openRelayStream,
   proxyRequest,
   requestOnce,
   stripRequestFramingHeaders,

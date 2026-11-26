@@ -349,4 +349,34 @@ describe("the proxy route", () => {
       license: "",
     });
   });
+
+  it("answers a shed sign-in in the stream framing when asked for a stream", async () => {
+    obLogin.mockResolvedValue({ outcome: "ok", token: "ob-token", name: NAME });
+
+    const res = await fetch(`${base}/api/proxy/`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        url: `http://api.obsidian.md:${upstreamPort}/user/signin`,
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(CREDENTIALS),
+        stream: true,
+      }),
+    });
+    const framed = Buffer.from(await res.arrayBuffer());
+    const preambleLength = framed.readUInt32BE(0);
+    const preamble = JSON.parse(
+      framed.subarray(4, 4 + preambleLength).toString(),
+    );
+
+    expect(res.status).toBe(200);
+    expect(preamble.status).toBe(200);
+    expect(JSON.parse(framed.subarray(4 + preambleLength).toString())).toEqual({
+      token: "ob-token",
+      email: EMAIL,
+      name: NAME,
+      license: "",
+    });
+  });
 });

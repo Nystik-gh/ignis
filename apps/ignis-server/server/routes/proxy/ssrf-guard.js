@@ -2,6 +2,53 @@ const dns = require("dns");
 const net = require("net");
 const settings = require("../../settings");
 
+function ipLiteral(hostname) {
+  const host = hostname.replace(/^\[|\]$/g, "");
+
+  return net.isIP(host) ? host : null;
+}
+
+function ipv6Groups(ip) {
+  let address = ip.split("%")[0].toLowerCase();
+  const lastGroup = address.slice(address.lastIndexOf(":") + 1);
+
+  if (lastGroup.includes(".")) {
+    const o = lastGroup.split(".").map(Number);
+    const high = ((o[0] << 8) | o[1]).toString(16);
+    const low = ((o[2] << 8) | o[3]).toString(16);
+    address = address.slice(0, -lastGroup.length) + high + ":" + low;
+  }
+
+  const [head, tail] = address.split("::");
+  const headGroups = head ? head.split(":") : [];
+  const tailGroups = tail ? tail.split(":") : [];
+  const zeroGroups = Array(8 - headGroups.length - tailGroups.length).fill("0");
+
+  return [...headGroups, ...zeroGroups, ...tailGroups].map((group) =>
+    parseInt(group, 16),
+  );
+}
+
+function embeddedIpv4(groups) {
+  const isMapped =
+    groups.slice(0, 5).every((group) => group === 0) && groups[5] === 0xffff;
+  const isNat64 =
+    groups[0] === 0x64 &&
+    groups[1] === 0xff9b &&
+    groups.slice(2, 6).every((group) => group === 0);
+
+  if (!isMapped && !isNat64) {
+    return null;
+  }
+
+  return [
+    groups[6] >> 8,
+    groups[6] & 0xff,
+    groups[7] >> 8,
+    groups[7] & 0xff,
+  ].join(".");
+}
+
 function isPrivateIp(ip) {
   const type = net.isIP(ip);
 
@@ -20,23 +67,18 @@ function isPrivateIp(ip) {
   }
 
   if (type === 6) {
-    const a = ip.toLowerCase();
+    const groups = ipv6Groups(ip);
+    const ipv4 = embeddedIpv4(groups);
 
-    if (a === "::1" || a === "::") {
-      return true;
+    if (ipv4) {
+      return isPrivateIp(ipv4);
     }
 
-    if (/^fe[89ab]/.test(a) || a.startsWith("fc") || a.startsWith("fd")) {
-      return true;
-    }
+    const isLoopbackOrUnspecified = groups.slice(0, 6).every((g) => g === 0);
+    const isLinkLocal = (groups[0] & 0xffc0) === 0xfe80;
+    const isUniqueLocal = (groups[0] & 0xfe00) === 0xfc00;
 
-    const mapped = a.match(/^::ffff:(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})$/);
-
-    if (mapped) {
-      return isPrivateIp(mapped[1]);
-    }
-
-    return false;
+    return isLoopbackOrUnspecified || isLinkLocal || isUniqueLocal;
   }
 
   return false;
@@ -210,15 +252,17 @@ async function assertPublicUrl(urlStr) {
     throw httpError(400, "Only http and https URLs are allowed");
   }
 
-  const host = parsed.hostname;
+  const literal = ipLiteral(parsed.hostname);
 
-  if (net.isIP(host)) {
-    if (!addressAllowed(host)) {
-      throw privateHostError(host);
+  if (literal) {
+    if (!addressAllowed(literal)) {
+      throw privateHostError(literal);
     }
 
     return;
   }
+
+  const host = parsed.hostname;
 
   let addrs;
 
@@ -237,6 +281,7 @@ async function assertPublicUrl(urlStr) {
 
 module.exports = {
   addressAllowed,
+  ipLiteral,
   httpError,
   privateHostError,
   safeLookup,

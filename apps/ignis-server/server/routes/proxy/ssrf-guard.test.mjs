@@ -4,6 +4,7 @@ import { createRequire } from "module";
 const require = createRequire(import.meta.url);
 const {
   isPrivateIp,
+  assertPublicUrl,
   buildAllowList,
   allowsAddress,
 } = require("./ssrf-guard.js");
@@ -67,6 +68,29 @@ describe("isPrivateIp", () => {
     expect(isPrivateIp("::ffff:8.8.8.8")).toBe(false);
   });
 
+  it("classifies the hex form of an embedded IPv4 address", () => {
+    for (const ip of ["::ffff:7f00:2", "::ffff:a9fe:a9fe", "64:ff9b::7f00:1"]) {
+      expect(isPrivateIp(ip), ip).toBe(true);
+    }
+
+    for (const ip of ["::ffff:808:808", "64:ff9b::808:808"]) {
+      expect(isPrivateIp(ip), ip).toBe(false);
+    }
+  });
+
+  it("flags private IPv6 in any spelling", () => {
+    for (const ip of [
+      "0:0:0:0:0:0:0:1",
+      "0:0:0:0:0:0:0:0",
+      "::127.0.0.1",
+      "FE80::1",
+      "fe80::1%eth0",
+      "fd00:0:0:0:0:0:0:1",
+    ]) {
+      expect(isPrivateIp(ip), ip).toBe(true);
+    }
+  });
+
   it("returns false for non-IP input", () => {
     expect(isPrivateIp("not-an-ip")).toBe(false);
     expect(isPrivateIp("")).toBe(false);
@@ -85,6 +109,22 @@ describe("proxyRequest guard", () => {
       proxyRequest({ url: "http://127.0.0.1/", method: "GET", headers: {} }),
     ).rejects.toMatchObject({ statusCode: 403 });
   });
+
+  it.each(["http://[::1]/", "http://[::ffff:127.0.0.2]/"])(
+    "rejects the private IPv6 literal %s",
+    async (url) => {
+      await expect(
+        proxyRequest({ url, method: "GET", headers: {} }),
+      ).rejects.toMatchObject({
+        statusCode: 403,
+        block: { code: "private-host" },
+      });
+      await expect(assertPublicUrl(url)).rejects.toMatchObject({
+        statusCode: 403,
+        block: { code: "private-host" },
+      });
+    },
+  );
 });
 
 describe("proxy private-host allow list", () => {

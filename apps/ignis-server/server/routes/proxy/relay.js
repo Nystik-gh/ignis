@@ -1,9 +1,9 @@
-const net = require("net");
 const http = require("http");
 const https = require("https");
 const zlib = require("zlib");
 const {
   addressAllowed,
+  ipLiteral,
   httpError,
   privateHostError,
   safeLookup,
@@ -163,8 +163,10 @@ async function proxyRequest({
     }
 
     // An IP-literal host skips DNS, so safeLookup never runs for it; check it here.
-    if (net.isIP(current.hostname) && !addressAllowed(current.hostname)) {
-      throw privateHostError(current.hostname);
+    const literal = ipLiteral(current.hostname);
+
+    if (literal && !addressAllowed(literal)) {
+      throw privateHostError(literal);
     }
 
     const res = await requestOnce(

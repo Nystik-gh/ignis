@@ -1,8 +1,10 @@
 // Sends cross-origin requests through the server proxy and returns the upstream response.
 // Throws an Error with the server's message and code.
 
-import { arrayBufferToBase64, base64ToArrayBuffer } from "./base64.js";
+import { arrayBufferToBase64, base64ToArrayBuffer } from "../base64.js";
+import { proxiedBody } from "./proxy-body.js";
 import { isProxyBlock, reportProxyBlock } from "./proxy-block.js";
+import { takeProxySlot } from "./proxy-slots.js";
 
 const PREAMBLE_LENGTH_BYTES = 4;
 const MAX_PREAMBLE_BYTES = 1024 * 1024;
@@ -25,7 +27,7 @@ function encodeBody(body) {
   return { body: body ?? null, binary: false };
 }
 
-async function postToProxy({ url, method, headers, body, signal }, mode) {
+async function sendToProxy({ url, method, headers, body, signal }, mode) {
   const payload = {
     url,
     method: method || "GET",
@@ -63,9 +65,22 @@ async function postToProxy({ url, method, headers, body, signal }, mode) {
   return res;
 }
 
+async function postToProxy(request, mode) {
+  const releaseSlot = await takeProxySlot(request.signal);
+
+  try {
+    const res = await sendToProxy(request, mode);
+
+    return { res, releaseSlot };
+  } catch (e) {
+    releaseSlot();
+    throw e;
+  }
+}
+
 export async function proxyFetch(request) {
-  const res = await postToProxy(request, {});
-  const result = await res.json();
+  const { res, releaseSlot } = await postToProxy(request, {});
+  const result = await res.json().finally(releaseSlot);
 
   return {
     status: result.status,
@@ -114,55 +129,22 @@ async function readPreamble(reader) {
   return { status, headers, firstBodyBytes: received.slice(end) };
 }
 
-async function readNonEmptyChunk(reader) {
-  let chunk = await reader.read();
-
-  while (!chunk.done && chunk.value.length === 0) {
-    chunk = await reader.read();
-  }
-
-  return chunk;
-}
-
 export async function openProxyStream(request) {
-  const res = await postToProxy(request, { stream: true });
-  const reader = res.body.getReader();
+  const { res, releaseSlot } = await postToProxy(request, { stream: true });
+  let reader;
   let preamble;
 
   try {
+    reader = res.body.getReader();
     preamble = await readPreamble(reader);
   } catch (e) {
-    reader.cancel().catch(() => {});
+    reader?.cancel().catch(() => {});
+    releaseSlot();
     throw e;
   }
 
   const { status, headers, firstBodyBytes } = preamble;
-
-  const body = new ReadableStream({
-    type: "bytes",
-
-    start(controller) {
-      if (firstBodyBytes.length > 0) {
-        controller.enqueue(firstBodyBytes);
-      }
-    },
-
-    async pull(controller) {
-      const { done, value } = await readNonEmptyChunk(reader);
-
-      if (done) {
-        controller.close();
-        controller.byobRequest?.respond(0); // end caller's buffer read.
-        return;
-      }
-
-      controller.enqueue(value);
-    },
-
-    cancel(reason) {
-      return reader.cancel(reason);
-    },
-  });
+  const body = proxiedBody(reader, firstBodyBytes, releaseSlot);
 
   return { status, headers, body };
 }

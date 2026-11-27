@@ -35,6 +35,10 @@ The usual cause is a sync server on a private address: Ignis relays plugin reque
 
 If notes open but images and attachments don't, the usual cause is the server waiting on a slow disk, typically a large vault on a network mount. You can let Ignis run more concurrent file operations by modifying `UV_THREADPOOL_SIZE`. The steps are in [Network filesystems](/docs/server/deploy/#network-filesystems).
 
+### Files stop loading or saving with several tabs open
+
+Over HTTP/1.1 a browser opens at most six connections to Ignis, shared between all tabs. If a plugin, or multiple plugins, hold several connections open at the same time the connection pool can become saturated which prevents Ignis from sending file operations to the server. Closing all tabs where Ignis is loaded except one will free up connection slots. This issue can be avoided by serving Ignis over HTTPS with HTTP/2 enabled, which most reverse proxies support.
+
 ### External changes don't show in the vault
 
 Ignis detects external changes by watching the files on the disk. If changes are not being detected, this is usually due to a limit on how many files can be watched, or if the vault lives on a network share.

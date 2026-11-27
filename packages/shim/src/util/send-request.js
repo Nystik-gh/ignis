@@ -1,7 +1,7 @@
 // Sends requests through the server proxy, or directly for same-origin and direct-fetch hosts.
 
 import { isSameOrigin, isDirectFetchHost } from "./url.js";
-import { proxyFetch, openProxyStream } from "./proxy.js";
+import { proxyFetch, openProxyStream } from "./proxy/proxy.js";
 import { desktopHeaders } from "./desktop-identity.js";
 import { hasHeader } from "./headers.js";
 

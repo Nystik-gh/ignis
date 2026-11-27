@@ -1,5 +1,5 @@
 import { isSameOrigin, isDirectFetchHost } from "../util/url.js";
-import { openProxyStream } from "../util/proxy.js";
+import { openProxyStream } from "../util/proxy/proxy.js";
 import { desktopHeaders } from "../util/desktop-identity.js";
 import { hasHeader } from "../util/headers.js";
 

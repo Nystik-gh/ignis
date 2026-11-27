@@ -24,7 +24,7 @@ Cache changes take effect after a tab refresh.
 **Proxy access** sets which external hosts a plugin may reach through the server's CORS proxy:
 
 - **Any public host** (the default) reaches any public address.
-- **Allowlist only** reaches just the hostnames you list. Restricting the proxy stops Obsidian's plugin and theme browser and its updates from working unless you allow their hosts, so the allowlist editor has a one-click button for the recommended set (`releases.obsidian.md`, `github.com`, `api.github.com`, `raw.githubusercontent.com`).
+- **Allowlist only** reaches the hostnames you list. Restricting the proxy stops Obsidian's plugin and theme browser and its updates from working unless you allow their hosts, so the allowlist editor has a one-click button for the recommended set (`releases.obsidian.md`, `github.com`, `api.github.com`, `raw.githubusercontent.com`).
 - **Disabled** turns off proxying entirely.
 
 See [Hardening](/docs/security/hardening/) for what the proxy exposes and why you would narrow it.

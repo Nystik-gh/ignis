@@ -1,4 +1,4 @@
-import { describe, it, expect, afterEach, vi } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { proxyFetch, openProxyStream } from "./proxy.js";
 
 function fakeResponse() {
@@ -264,4 +264,83 @@ describe("openProxyStream", () => {
       expect(cancel).toHaveBeenCalledOnce();
     },
   );
+});
+
+describe("the limit on open proxied requests", () => {
+  let openProxyStream;
+  let proxyFetch;
+
+  beforeEach(async () => {
+    vi.resetModules();
+    ({ openProxyStream, proxyFetch } = await import("./proxy.js"));
+  });
+
+  afterEach(() => {
+    delete globalThis.window;
+  });
+
+  it("gives the slot back when the proxy answers without a body", async () => {
+    respondWith(null);
+    window.__originalFetch = async () => new Response(null, { status: 200 });
+
+    for (let i = 0; i < 5; i++) {
+      await expect(
+        openProxyStream({ url: "https://example.com/x" }),
+      ).rejects.toThrow();
+    }
+  });
+
+  it("holds the fifth request back while four bodies are open, and sends it when one is cancelled", async () => {
+    const calls = respondWith(null);
+    window.__originalFetch = async (url, opts) => {
+      calls.push(opts);
+
+      return new Response(streamOf([framed(200, {})], { staysOpen: true }));
+    };
+    const open = [];
+
+    for (let i = 0; i < 4; i++) {
+      open.push(await openProxyStream({ url: "https://example.com/x" }));
+    }
+
+    const fifth = openProxyStream({ url: "https://example.com/x" });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(calls).toHaveLength(4);
+
+    await open[0].body.cancel();
+    const { body } = await fifth;
+
+    expect(calls).toHaveLength(5);
+
+    await Promise.all(
+      [body, ...open.slice(1).map((o) => o.body)].map((b) => b.cancel()),
+    );
+  });
+
+  it("gives the slot back when the proxy refuses the request", async () => {
+    respondWith(
+      new Response(JSON.stringify({ error: "nope" }), { status: 502 }),
+    );
+    window.__originalFetch = async () =>
+      new Response(JSON.stringify({ error: "nope" }), { status: 502 });
+
+    for (let i = 0; i < 5; i++) {
+      await expect(
+        openProxyStream({ url: "https://example.com/x" }),
+      ).rejects.toThrow("nope");
+    }
+  });
+
+  it("gives the slot back when an envelope answer has been read", async () => {
+    respondWith(null);
+    window.__originalFetch = async () =>
+      new Response(JSON.stringify({ status: 200, headers: {}, body: "" }));
+
+    for (let i = 0; i < 5; i++) {
+      expect((await proxyFetch({ url: "https://example.com/x" })).status).toBe(
+        200,
+      );
+    }
+  });
 });

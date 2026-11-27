@@ -1,4 +1,13 @@
-import { describe, it, expect, beforeAll, afterAll, beforeEach } from "vitest";
+import {
+  describe,
+  it,
+  expect,
+  beforeAll,
+  afterAll,
+  beforeEach,
+  afterEach,
+  vi,
+} from "vitest";
 import { createRequire } from "module";
 import path from "path";
 import fs from "fs";
@@ -115,6 +124,15 @@ beforeAll(async () => {
         "X-Owner": "café",
       });
       res.end("after the headers");
+      return;
+    }
+
+    if (req.url === "/redirect-endless") {
+      res.writeHead(302, { Location: "/gzip" });
+      onHangingRequest(req);
+
+      const timer = setInterval(() => res.write("x".repeat(1024)), 5);
+      res.on("close", () => clearInterval(timer));
       return;
     }
 
@@ -518,5 +536,156 @@ describe("the stream mode", () => {
     abort.abort();
 
     await closed;
+  });
+});
+
+describe("the limits on open streams", () => {
+  const { streamLimits } = proxyRouter;
+  const defaults = { ...streamLimits };
+
+  afterEach(() => {
+    Object.assign(streamLimits, defaults);
+  });
+
+  function openHangingStream() {
+    const abort = new AbortController();
+    const arrived = new Promise((resolve) => {
+      onHangingRequest = resolve;
+    });
+    const response = fetch(`${base}/api/proxy`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        url: `${upstreamBase}/first-chunk-then-hang`,
+        stream: true,
+      }),
+      signal: abort.signal,
+    });
+
+    return { abort, arrived, response };
+  }
+
+  it("refuses a stream past the limit, and accepts one again when a stream closes", async () => {
+    streamLimits.maxOpenStreams = 1;
+    const first = openHangingStream();
+    await first.arrived;
+
+    const refused = await streamProxy(`${upstreamBase}/sse`);
+    const envelope = await proxy(`${upstreamBase}/gzip`);
+
+    expect(refused.status).toBe(429);
+    expect((await refused.json()).code).toBe("too-many-streams");
+    expect(envelope.status).toBe(200);
+
+    first.abort.abort();
+    await first.response.then((res) => res.text()).catch(() => {});
+
+    await vi.waitFor(async () => {
+      const accepted = await streamProxy(`${upstreamBase}/gzip`);
+      await accepted.arrayBuffer();
+
+      expect(accepted.status).toBe(200);
+    });
+  });
+
+  it("takes no slot for a client that left during the host lookup", async () => {
+    streamLimits.maxOpenStreams = 1;
+    let finishLookup;
+    const lookupStarted = new Promise((started) => {
+      dns.promises.lookup = () => {
+        started();
+
+        return new Promise((resolve) => {
+          finishLookup = () =>
+            resolve([{ address: "93.184.216.34", family: 4 }]);
+        });
+      };
+    });
+
+    const abort = new AbortController();
+    const left = fetch(`${base}/api/proxy`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ url: "http://slow.example/x", stream: true }),
+      signal: abort.signal,
+    }).catch(() => {});
+
+    await lookupStarted;
+    abort.abort();
+    await left;
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    finishLookup();
+    dns.promises.lookup = realLookup;
+    await new Promise((resolve) => setTimeout(resolve, 50));
+
+    const accepted = await streamProxy(`${upstreamBase}/gzip`);
+    await accepted.arrayBuffer();
+
+    expect(accepted.status).toBe(200);
+  });
+
+  it("releases its slot when the upstream cannot be reached", async () => {
+    streamLimits.maxOpenStreams = 1;
+
+    await (await streamProxy(`${refusedBase}/x`)).text();
+
+    await vi.waitFor(async () => {
+      const accepted = await streamProxy(`${upstreamBase}/gzip`);
+      await accepted.arrayBuffer();
+
+      expect(accepted.status).toBe(200);
+    });
+  });
+
+  it("ends a stream whose client has stopped reading", async () => {
+    streamLimits.maxOpenStreams = 1;
+    streamLimits.clientIdleTimeoutMs = 200;
+
+    const stalled = http.request(`${base}/api/proxy`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+    });
+    const responded = new Promise((resolve) => {
+      stalled.on("response", (res) => {
+        res.pause();
+        resolve();
+      });
+    });
+    stalled.on("error", () => {});
+    stalled.end(
+      JSON.stringify({ url: `${upstreamBase}/unsized`, stream: true }),
+    );
+    await responded;
+
+    await vi.waitFor(
+      async () => {
+        const accepted = await streamProxy(`${upstreamBase}/gzip`);
+        await accepted.arrayBuffer();
+
+        expect(accepted.status).toBe(200);
+      },
+      { timeout: 4000 },
+    );
+    stalled.destroy();
+  });
+});
+
+describe("a redirect answer with a body that never ends", () => {
+  it("is dropped when the redirect is followed", async () => {
+    const arrived = new Promise((resolve) => {
+      onHangingRequest = resolve;
+    });
+    const res = await proxy(`${upstreamBase}/redirect-endless`);
+    const redirectRequest = await arrived;
+
+    expect((await res.json()).status).toBe(200);
+
+    await new Promise((resolve) => {
+      if (redirectRequest.socket.destroyed) {
+        resolve();
+      } else {
+        redirectRequest.socket.on("close", resolve);
+      }
+    });
   });
 });

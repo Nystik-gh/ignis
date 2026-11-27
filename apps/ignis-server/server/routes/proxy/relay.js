@@ -12,6 +12,7 @@ const {
 const MAX_RESPONSE_BYTES = 50 * 1024 * 1024;
 const UPSTREAM_IDLE_TIMEOUT_MS = 5 * 60 * 1000;
 const MAX_REDIRECTS = 5;
+const MAX_REDIRECT_BODY_BYTES = 64 * 1024;
 const REDIRECT_CODES = new Set([301, 302, 303, 307, 308]);
 const FRAMING_HEADERS = new Set(["content-length", "transfer-encoding"]);
 const CREDENTIAL_HEADERS = new Set(["authorization", "cookie"]);
@@ -143,6 +144,18 @@ function requestOnce(
   });
 }
 
+function discardRedirectBody(res) {
+  let received = 0;
+
+  res.on("data", (chunk) => {
+    received += chunk.length;
+
+    if (received > MAX_REDIRECT_BODY_BYTES) {
+      res.destroy();
+    }
+  });
+}
+
 // Follow redirects manually so every hop runs through safeLookup and is re-checked.
 async function proxyRequest({
   url,
@@ -181,7 +194,7 @@ async function proxyRequest({
       return res;
     }
 
-    res.resume();
+    discardRedirectBody(res);
     const next = new URL(res.headers.location, current);
 
     currentHeaders = withoutHeaders(currentHeaders, HOST_HEADER);

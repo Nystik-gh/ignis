@@ -12,6 +12,19 @@ const { PROXY_BODY_TOO_LARGE } = require("../../body-limits");
 
 const router = express.Router();
 
+const streamLimits = {
+  maxOpenStreams: 64,
+  clientIdleTimeoutMs: 5 * 60 * 1000,
+};
+
+const TOO_MANY_STREAMS = {
+  error:
+    "Too many proxied connections are open. Try again when one has finished.",
+  code: "too-many-streams",
+};
+
+let openStreams = 0;
+
 const STREAM_HEADERS = {
   "Content-Type": "application/octet-stream",
   "X-Content-Type-Options": "nosniff",
@@ -88,6 +101,10 @@ router.post("/", async (req, res) => {
 
   const refusal = await accessRefusal(url);
 
+  if (upstreamAbort.signal.aborted) {
+    return;
+  }
+
   if (refusal) {
     return res.status(refusal.status).json(refusal.body);
   }
@@ -115,8 +132,16 @@ router.post("/", async (req, res) => {
     const credentials = signinCredentials(req.body);
 
     if (stream && !credentials) {
+      if (openStreams >= streamLimits.maxOpenStreams) {
+        return res.status(429).json(TOO_MANY_STREAMS);
+      }
+
+      openStreams++;
+      res.on("close", () => openStreams--);
+
       const opened = await openRelayStream(relayArgs);
       startStream(res, opened);
+      res.setTimeout(streamLimits.clientIdleTimeoutMs, () => res.destroy());
       await pipeline(...opened.bodyStreams, res);
       return;
     }
@@ -158,3 +183,4 @@ router.post("/", async (req, res) => {
 });
 
 module.exports = router;
+module.exports.streamLimits = streamLimits;
